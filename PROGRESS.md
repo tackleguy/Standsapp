@@ -44,6 +44,6 @@
 
 ## Accounts and keys (names only, never values)
 
-- GitHub repo: `krichman2000/Standsapp` (Claude needs the GitHub app installed to push).
+- GitHub repo: `krichman2000/Standsapp`, connected. Code lives on branch `claude/great-lamport-4twc5u` (the repo's default branch).
 - Supabase: an account is connected to Claude but **not used**. Decision: no database for now.
 - Vercel: to be connected.
