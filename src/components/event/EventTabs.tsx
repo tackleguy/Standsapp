@@ -1,0 +1,95 @@
+// The Feed and Calls tabs of the event screen.
+import { FlashList } from '@shopify/flash-list';
+import { useMemo, useState } from 'react';
+import { ScrollView, StyleSheet, Text, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+
+import type { EventState } from '@/data/types';
+import { useAccountGate } from '@/hooks/useAccountGate';
+import { useEventCalls } from '@/hooks/useLiveData';
+import { useNow } from '@/hooks/useNow';
+import { formatDay, formatTime, timeUntil } from '@/lib/format';
+import { CLOUT_DISCLAIMER } from '@/logic/rules';
+import { useUserStore } from '@/store/user';
+import { colors, space, type } from '@/theme/tokens';
+
+import { CallCard } from '../calls/CallCard';
+import { LiveDot } from '../ui/LiveDot';
+import { Segmented } from '../ui/Misc';
+import { EmptyState, ErrorState, Skeleton } from '../ui/StateViews';
+import { PlayRow } from './PlayRow';
+
+type ScrollHandler = (e: NativeSyntheticEvent<NativeScrollEvent>) => void;
+
+export function FeedTab({ state, onScroll }: { state: EventState; onScroll: ScrollHandler }) {
+  const now = useNow(10_000);
+  const [filter, setFilter] = useState<'all' | 'key'>('all');
+  const ratings = useUserStore((s) => s.ratings);
+  const rate = useUserStore((s) => s.ratePlay);
+  const { isGuest, require } = useAccountGate();
+  const plays = useMemo(() => {
+    const list = filter === 'key' ? state.plays.filter((p) => p.importance >= 2) : state.plays;
+    return [...list].reverse();
+  }, [state.plays, filter]);
+
+  const header = (
+    <View style={styles.feedHead}>
+      {state.status === 'live' ? (
+        <View style={styles.liveNote}><LiveDot /><Text style={styles.liveText}>Live — new plays appear automatically</Text></View>
+      ) : null}
+      <Segmented value={filter} onChange={setFilter}
+        options={[{ value: 'all', label: `All plays · ${state.plays.length}` }, { value: 'key', label: 'Key moments' }]} />
+    </View>
+  );
+
+  if (state.status === 'scheduled') {
+    return (
+      <ScrollView onScroll={onScroll} scrollEventThrottle={32}>
+        <EmptyState icon="time" title={`Starts ${timeUntil(state.meta.startsAt, now)}`}
+          body={`${formatDay(state.meta.startsAt)} at ${formatTime(state.meta.startsAt)} · ${state.meta.venue}. The play-by-play begins at the start. Make your Calls now in the Calls tab.`} />
+      </ScrollView>
+    );
+  }
+  if (state.status === 'postponed' || state.status === 'cancelled') {
+    return <EmptyState icon="alert-circle" title={state.status === 'postponed' ? 'Postponed' : 'Cancelled'} body="Any Calls on this event are refunded automatically." />;
+  }
+  return (
+    <FlashList
+      data={plays}
+      keyExtractor={(p) => p.id}
+      onScroll={onScroll}
+      scrollEventThrottle={32}
+      ListHeaderComponent={header}
+      ListEmptyComponent={<EmptyState icon="hourglass" title="Waiting for the first play" />}
+      renderItem={({ item }) => (
+        <PlayRow play={item} now={now} myRating={ratings[item.id]} canRate={!isGuest}
+          onRate={(n) => rate(item.id, n)} onNeedAccount={() => require('rate plays')} />
+      )}
+      ListFooterComponent={<View style={{ height: 40 }} />}
+    />
+  );
+}
+
+export function CallsTab({ state, onScroll }: { state: EventState; onScroll: ScrollHandler }) {
+  const now = useNow(5000);
+  const calls = useEventCalls(state.meta.id);
+  const { require } = useAccountGate();
+  if (calls.isLoading) return <Skeleton rows={3} height={180} />;
+  if (calls.isError) return <ErrorState onRetry={() => calls.refetch()} />;
+  const list = calls.data ?? [];
+  return (
+    <ScrollView onScroll={onScroll} scrollEventThrottle={32} contentContainerStyle={{ paddingTop: space.md, paddingBottom: 60 }}>
+      <Text style={styles.disclaimer}>{CLOUT_DISCLAIMER}</Text>
+      {list.length === 0 ? <EmptyState icon="flash" title="No Calls on this event" /> : list.map((c) => (
+        <CallCard key={c.id} call={c} eventTitle={state.meta.title} sportId={state.meta.sportId} now={now}
+          onNeedAccount={() => require('make Calls')} />
+      ))}
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  feedHead: { padding: space.lg, gap: space.md },
+  liveNote: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  liveText: { ...type.label, color: colors.textDim },
+  disclaimer: { ...type.label, color: colors.textDim, textAlign: 'center', paddingHorizontal: space.xl, marginBottom: space.md, lineHeight: 17 },
+});

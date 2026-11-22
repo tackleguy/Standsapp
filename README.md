@@ -12,13 +12,20 @@ code will later become the iPhone and Android apps.
 - **Expo + React Native + TypeScript**: one codebase for web, iPhone and Android.
 - **expo-router**: every file in `src/app/` is a screen.
 - **Vercel**: hosts the web version. Every push to GitHub redeploys it automatically.
-- **Data**: built-in demo data for now. A database will be added later.
+- **Data**: a built-in demo world. Every sport has a simulator that plays events out in real
+  time, identically on every phone. A database and real feeds will be added later.
 
 ## Folders
 
 | Path | What is in it |
 | --- | --- |
-| `src/app/` | Screens. `index.tsx` is the first screen. |
+| `src/app/` | Screens. `(tabs)/index.tsx` is Today; `event/[id].tsx` is the live event screen. |
+| `src/components/` | Building blocks: score cards, play rows, Calls, chat, Stand Cards, the track map. |
+| `src/data/api.ts` | The one place screens get sports data from (swap point for a real backend). |
+| `src/data/demo/` | The demo world: teams, timetable, simulators for every sport, demo fans. |
+| `src/logic/` | Game rules: Calls, Gate Check, packs, accounts (mirrors the planned server routines). |
+| `src/store/` | What is saved on the device: wallet, Calls, cards, messages, Sections, settings. |
+| `src/lib/tracks.ts` | Original circuit layouts for the live motorsport track map. |
 | `src/config/sports.ts` | The list of every sport Stands supports (single source of truth). |
 | `src/theme/tokens.ts` | Colors, spacing and text styles ("floodlights at night"). |
 | `public/` | Files served as-is on the web (page template, home-screen icon). |
