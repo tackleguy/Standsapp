@@ -53,22 +53,37 @@ export const tennis: SportStatsDef = {
   positions: [],
   athletePos: { pos: 'Player', label: 'Player' },
   labels: { sw: 'SETS', gw: 'GAMES', gl: 'LOST', aces: 'ACES', df: 'DF', brk: 'BRK', win: 'WIN' },
-  fantasy: { gw: 1, sw: 3, win: 5, aces: 0.5, df: -1, brk: 1.5 },
-  headline: (l) => join([n(l, 'win') ? 'Won' : null, `${n(l, 'sw')} sets`, `${n(l, 'gw')} games`, `${n(l, 'aces')} aces`]),
-  feedLine: (l) => join([`${n(l, 'sw')} sets`, `${n(l, 'gw')} gms`, n(l, 'aces') ? `${n(l, 'aces')} aces` : null], ', '),
+  // Straight-sets winner about 26, beaten in straight sets about 5, a three-set loser about 16.
+  fantasy: { gw: 0.5, sw: 3, win: 8, aces: 0.5, df: -1, brk: 1.5 },
+  headline: (l) => join([
+    n(l, 'win') ? 'Won' : null,
+    `${n(l, 'sw')} ${n(l, 'sw') === 1 ? 'set' : 'sets'}`,
+    `${n(l, 'gw')} ${n(l, 'gw') === 1 ? 'game' : 'games'}`,
+    `${n(l, 'aces')} ${n(l, 'aces') === 1 ? 'ace' : 'aces'}`,
+  ]),
+  feedLine: (l) => join([
+    `${n(l, 'sw')} ${n(l, 'sw') === 1 ? 'set' : 'sets'}`, `${n(l, 'gw')} gms`,
+    n(l, 'aces') ? `${n(l, 'aces')} ${n(l, 'aces') === 1 ? 'ace' : 'aces'}` : null,
+  ], ', '),
   grid: () => [[stat('sw', 'SETS'), stat('gw', 'GAMES'), stat('gl', 'LOST'), stat('aces', 'ACES'), stat('df', 'DF'), stat('brk', 'BRK')]],
 };
 
 function combat(sportId: string, pos: string, label: string): SportStatsDef {
+  const mma = sportId === 'mma';
+  // Boxers land far more (punches, about 7 a minute) than MMA fighters land
+  // significant strikes (about 4), so each one is worth less.
+  const strikes = (v: number) => `${v} ${mma ? (v === 1 ? 'strike' : 'strikes') : v === 1 ? 'punch' : 'punches'}`;
   return {
     sportId,
     positions: [],
     athletePos: { pos, label },
-    labels: { ss: 'STR', kd: 'KD', td: 'TD', sa: 'SUB', win: 'WIN', fin: 'FIN', r1: 'R1' },
-    fantasy: { ss: 0.2, kd: 4, td: 2, sa: 1, win: 10, fin: 8, r1: 6 },
-    headline: (l) => join([n(l, 'win') ? (n(l, 'fin') ? 'Won inside the distance' : 'Won') : null, `${n(l, 'ss')} strikes`, n(l, 'kd') ? `${n(l, 'kd')} kd` : null, n(l, 'td') ? `${n(l, 'td')} td` : null]),
+    // Boxing has no takedowns or submissions.
+    labels: mma ? { ss: 'STR', kd: 'KD', td: 'TD', sa: 'SUB', win: 'WIN', fin: 'FIN', r1: 'R1' } : { ss: 'STR', kd: 'KD', win: 'WIN', fin: 'FIN', r1: 'R1' },
+    // Winner about 29 (a first-round finish 30), loser about 9 (a quick loss 2).
+    fantasy: mma ? { ss: 0.1, kd: 4, td: 2, sa: 1, win: 12, fin: 8, r1: 6 } : { ss: 0.04, kd: 4, win: 12, fin: 8, r1: 6 },
+    headline: (l) => join([n(l, 'win') ? (n(l, 'fin') ? 'Won inside the distance' : 'Won') : null, strikes(n(l, 'ss')), n(l, 'kd') ? `${n(l, 'kd')} kd` : null, n(l, 'td') ? `${n(l, 'td')} td` : null]),
     feedLine: (l) => join([`${n(l, 'ss')} STR`, n(l, 'kd') ? `${n(l, 'kd')} KD` : null, n(l, 'td') ? `${n(l, 'td')} TD` : null], ', '),
-    grid: () => [[stat('ss', 'STRIKES'), stat('kd', 'KD'), ...(sportId === 'mma' ? [stat('td', 'TD'), stat('sa', 'SUB ATT')] : []), cell('RESULT', (l) => (n(l, 'win') ? (n(l, 'fin') ? 'Finish' : 'Win') : '–'))]],
+    grid: () => [[stat('ss', mma ? 'STRIKES' : 'PUNCHES'), stat('kd', 'KD'), ...(mma ? [stat('td', 'TD'), stat('sa', 'SUB ATT')] : []), cell('RESULT', (l) => (n(l, 'win') ? (n(l, 'fin') ? 'Finish' : 'Win') : '–'))]],
   };
 }
 
