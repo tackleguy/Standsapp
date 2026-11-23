@@ -22,7 +22,7 @@ export default function Rules() {
       { heading: 'Tools you have', body: [
         'Report: press and hold any message (or tap •••) and choose Report. We hide it for you right away.',
         'Block: blocking someone hides all of their messages from you.',
-        'Our word filter stops the worst language before it is posted.',
+        'Our word filter stops the most extreme racial slurs before they are posted. Report and Block handle everything else.',
       ] },
       { heading: 'What happens if you break the rules', body: [
         'Messages that break these rules are removed. Repeated or serious breaks lead to a mute or a permanent ban.',

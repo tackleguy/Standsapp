@@ -104,10 +104,11 @@ describe('packs and chat', () => {
     expect(useUserStore.getState().openPack({ packId: 'standard', sportId: 'f1' }, Date.now())).toEqual({ error: 'Not enough Tix.' });
   });
 
-  it('filters bad words and throttles fast posting', () => {
+  it('blocks extreme slurs, allows swearing, and throttles fast posting', () => {
     const post = useUserStore.getState().postMessage;
-    expect(post('event:a', 'what a shit call', 1_000_000)).toMatch(/friendly/);
-    expect(post('event:a', 'what a call', 1_000_000)).toBeNull();
+    const slur = 'avttre'.replace(/[a-z]/g, (c) => String.fromCharCode(((c.charCodeAt(0) - 97 + 13) % 26) + 97));
+    expect(post('event:a', `what a ${slur}`, 1_000_000)).toMatch(/isn’t allowed/);
+    expect(post('event:a', 'what a shit call', 1_000_000)).toBeNull();
     expect(post('event:a', 'again', 1_000_500)).toMatch(/too fast/);
     expect(post('event:a', 'again', 1_003_000)).toBeNull();
   });
