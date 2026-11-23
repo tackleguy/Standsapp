@@ -3,7 +3,7 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 
 import {
-  getCompetitor, getDayEvents, getEvent, getEventCalls, getLeaderboard, getOpenCalls, search,
+  getCompetitor, getDayEvents, getEvent, getEventCalls, getGamePackEvents, getLeaderboard, getOpenCalls, search,
 } from '@/data/api';
 import { currentTime, DAY } from '@/lib/format';
 
@@ -69,5 +69,14 @@ export function useLeaderboard(fanIds?: string[]) {
     queryKey: ['leaderboard', fanIds?.join(',') ?? 'all'],
     queryFn: () => asPromise(() => getLeaderboard(currentTime(), fanIds)),
     refetchInterval: 30_000,
+  });
+}
+
+export function useGamePacks() {
+  return useQuery({
+    queryKey: ['game-packs'],
+    queryFn: () => asPromise(() => getGamePackEvents(currentTime())),
+    refetchInterval: 15_000,
+    placeholderData: keepPreviousData,
   });
 }

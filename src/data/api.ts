@@ -2,6 +2,8 @@
 // world; later the same functions will read the real database instead.
 import { SPORTS, type SportConfig } from '@/config/sports';
 import { DAY, HOUR } from '@/lib/format';
+import { gamePackOpen } from '@/logic/packs';
+import { GAME_PACK_OPENS_MS } from '@/logic/rules';
 
 import { callsForEvent, viewCall } from './demo/calls';
 import { eventBotMessages, sectionBotMessages } from './demo/chat';
@@ -116,6 +118,15 @@ export function search(query: string): SearchResults {
       .sort((a, b) => score(a.name) - score(b.name)).slice(0, 40),
     competitions: world.competitions.filter((c) => score(c.name) < 9).slice(0, 10),
   };
+}
+
+/** Games with a Game Pack on sale right now: live first, then the soonest to start. */
+export function getGamePackEvents(now: number): EventState[] {
+  return eventsBetween(now - 12 * HOUR, now + GAME_PACK_OPENS_MS + 1)
+    .filter((m) => !m.disruption)
+    .map((m) => simulate(m, now))
+    .filter((s) => gamePackOpen(s, now))
+    .sort((a, b) => Number(b.status === 'live') - Number(a.status === 'live') || a.meta.startsAt - b.meta.startsAt);
 }
 
 /** The next event for a sport, for quiet-day empty states. */

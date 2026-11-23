@@ -148,6 +148,34 @@ export interface CardTemplate {
   season: string;
 }
 
+/** Holo cards are a shiny parallel of a card, with their own smaller print run. */
+export type CardFinish = 'base' | 'holo';
+
+/** The packs on sale in the Pack Store. Game Packs belong to one live game. */
+export type PackTypeId = 'daily' | 'standard' | 'premium' | 'elite' | 'game';
+
+/** Where a card came from. */
+export type CardSource = PackTypeId | 'tradeup';
+
+/** A card a fan owns. Mirrors the planned `owned_cards` table. */
+export interface OwnedCard {
+  id: string;
+  templateId: string;
+  competitorId: string;
+  rarity: CardRarity;
+  serial: number;
+  acquiredAt: number;
+  /** Missing on cards opened before Holo existed: treat as 'base'. */
+  finish?: CardFinish;
+  /** Game Day cards remember the game their Game Pack came from. */
+  eventId?: string | null;
+  source?: CardSource;
+  /** Favorites are protected from quick sell and trade-ups. */
+  favorite?: boolean;
+  /** A Game Day card whose team or athlete won its game. */
+  wonGame?: boolean;
+}
+
 // ---------- Fans (simulated other people in the demo) ----------
 export interface Fan {
   id: string;

@@ -43,6 +43,9 @@ export default function RootLayout() {
               <Stack.Screen name="follows" />
               <Stack.Screen name="leaderboard" />
               <Stack.Screen name="pack" options={{ presentation: 'modal' }} />
+              <Stack.Screen name="card/[id]" />
+              <Stack.Screen name="set/[id]" />
+              <Stack.Screen name="tradeup" />
               <Stack.Screen name="account" options={{ presentation: 'modal' }} />
             </Stack.Protected>
             <Stack.Screen name="privacy" />

@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { CompetitorBadge } from '@/components/Badge';
+import { StandCard } from '@/components/cards/StandCard';
 import { GateCheckCard } from '@/components/GateCheckCard';
 import { Button } from '@/components/ui/Button';
 import { Icon, type IconName } from '@/components/ui/Icon';
@@ -12,6 +13,7 @@ import { competitorById } from '@/data/api';
 import { useNow } from '@/hooks/useNow';
 import { formatNumber } from '@/lib/format';
 import { summarizeRecord } from '@/logic/predictions';
+import { SHOWCASE_MAX } from '@/logic/rules';
 import { useUserStore, weeklyCloutWon } from '@/store/user';
 import { colors, radius, space, type } from '@/theme/tokens';
 
@@ -21,6 +23,9 @@ export default function MeScreen() {
   const clout = useUserStore((s) => s.clout);
   const tix = useUserStore((s) => s.tix);
   const cards = useUserStore((s) => s.cards.length);
+  const allCards = useUserStore((s) => s.cards);
+  const showcaseIds = useUserStore((s) => s.showcase);
+  const showcase = showcaseIds.map((id) => allCards.find((c) => c.id === id)).filter((c) => !!c);
   const predictions = useUserStore((s) => s.predictions);
   const ledger = useUserStore((s) => s.ledger);
   const followed = useUserStore((s) => s.followedCompetitors);
@@ -50,6 +55,19 @@ export default function MeScreen() {
           <StatTile label="Cards" value={String(cards)} />
         </View>
         <GateCheckCard />
+        <SectionHeading title={`Showcase · ${showcase.length}/${SHOWCASE_MAX}`} right={<Text style={styles.link} onPress={() => router.push('/cards')}>My cards ›</Text>} />
+        {showcase.length === 0 ? (
+          <Text style={styles.muted}>Pin your best Stand Cards here. Open any card in your collection and tap Showcase.</Text>
+        ) : (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.follows}>
+            {showcase.map((c) => (
+              <Pressable key={c.id} onPress={() => router.push({ pathname: '/card/[id]', params: { id: c.id } })} accessibilityRole="button">
+                <StandCard competitorId={c.competitorId} rarity={c.rarity} serial={c.serial} width={104}
+                  finish={c.finish} eventId={c.eventId} favorite={c.favorite} won={c.wonGame} />
+              </Pressable>
+            ))}
+          </ScrollView>
+        )}
         <SectionHeading title="Calls record" right={<Text style={styles.link} onPress={() => router.push('/leaderboard')}>Leaderboard ›</Text>} />
         <View style={styles.tiles}>
           <StatTile label="Made" value={String(record.made)} />
