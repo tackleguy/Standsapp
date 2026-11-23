@@ -12,22 +12,24 @@ code will later become the iPhone and Android apps.
 - **Expo + React Native + TypeScript**: one codebase for web, iPhone and Android.
 - **expo-router**: every file in `src/app/` is a screen.
 - **Vercel**: hosts the web version. Every push to GitHub redeploys it automatically.
-- **Data**: a built-in demo world. Every sport has a simulator that plays events out in real
-  time, identically on every phone. A database and real feeds will be added later.
+- **Data**: a built-in simulated world (a "preview season"). Every sport has a simulator that
+  plays events out in real time, identically on every phone, plus a season model (tables,
+  records, championships), a crowd model (who is watching), a live chat engine and leaderboards.
+  A database and real feeds will be added later.
 
 ## Folders
 
 | Path | What is in it |
 | --- | --- |
-| `src/app/` | Screens. `(tabs)/index.tsx` is Today; `event/[id].tsx` is the live event screen. |
-| `src/components/` | Building blocks: score cards, play rows, Calls, chat, Stand Cards, the track map. |
+| `src/app/` | Screens. `(tabs)/index.tsx` is Today; `event/[id].tsx` is the live event screen; `standings/[sportId].tsx` is the league table; `fan/[id].tsx` is a fan's profile. |
+| `src/components/` | Building blocks: score cards, play rows, Calls, chat, Stand Cards, the track map, tables, leaderboard rows. |
 | `src/data/api.ts` | The one place screens get sports data from (swap point for a real backend). |
-| `src/data/demo/` | The demo world: teams, timetable, simulators for every sport, demo fans. |
-| `src/logic/` | Game rules: Calls, Gate Check, packs, accounts (mirrors the planned server routines). |
+| `src/data/demo/` | The simulated world: teams and kit colours, fixtures, simulators for every sport, the season (`season.ts`), the crowd (`crowd.ts`), chat (`chat.ts`), leaderboards (`ranking.ts`), simulated fans. |
+| `src/logic/` | Game rules: Calls, Gate Check, packs, accounts, win probability (mirrors the planned server routines). |
 | `src/store/` | What is saved on the device: wallet, Calls, cards, messages, Sections, settings. |
 | `src/lib/tracks.ts` | Original circuit layouts for the live motorsport track map. |
 | `src/config/sports.ts` | The list of every sport Stands supports (single source of truth). |
-| `src/theme/tokens.ts` | Colors, spacing and text styles ("floodlights at night"). |
+| `src/theme/tokens.ts` | Colors, spacing, fonts and text styles ("floodlights at night"). Scores and headings use the Barlow Condensed font. |
 | `public/` | Files served as-is on the web (page template, home-screen icon). |
 | `assets/images/` | App icon, favicon and splash image. |
 | `vercel.json` | Tells Vercel how to build and serve the web app. |
@@ -53,8 +55,8 @@ That opens Stands in your browser and reloads it as files change.
 npm run check
 ```
 
-Runs the linter (style and mistakes) and the type checker. Both must pass before
-a phase is called done.
+Runs the linter (style and mistakes), the type checker and the tests. All must pass
+before a phase is called done.
 
 ## Building the web version
 

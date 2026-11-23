@@ -34,7 +34,35 @@
 - **Gate Check** daily bonus with streaks; **weekly leaderboard**; **search**; **profile**.
 - **Safety**: guest browsing, account needed to chat/predict/collect, 13+ age check, word filter,
   report, block, 2-second post throttle, delete account, privacy policy and community rules.
-- Checks: `npm run check` (linter + type checker + 41 tests) passes.
+- Checks at the time: `npm run check` (linter + type checker + 41 tests) passed.
+
+## Version 2: "make it feel real" (November 2026)
+
+- **Look**: Barlow Condensed for scores, clocks and headings; every club has kit colours, drivers
+  wear their team's livery, solo athletes their nation's colours; leagues have realistic invented
+  names (Premier Football League, Grand Prix World Series...). The per-card DEMO tags are gone;
+  one honest note stays at the bottom of Today and in Settings.
+- **Today**: live scores ticker, swipeable featured big games with team-colour glow, score cards
+  with season records, the live crowd and the latest key play.
+- **Fixtures**: round-robin (circle method), so no team is ever in two games at once (tested).
+- **Season**: league tables with form, movement and qualification zones; win-loss standings;
+  driver and team championships; fighter rankings; head-to-head. Team and athlete pages show
+  position, record, form, streak and a mini table.
+- **Live game screen**: team-colour scoreboard with a ticking clock, scorers, red cards and
+  "N watching"; live win probability (bar and chart, never 100% before the end); a Preview tab
+  before kick-off (countdown, form, table, head-to-head, crowd pick); celebration banners for
+  big moments; denser play-by-play with icons; in-app alerts for followed teams and open Calls.
+- **Live chat**: a packed match thread that reacts to the real plays (scorers, score, clock),
+  supporters in team colours, replies, typing indicator, floating reactions, big-moment cards.
+- **Leaderboards**: Today / Week / Season, global, following or by sport, ~50K ranked fans with
+  estimated ranks, podium, movement arrows, tiers (Bronze to Legend, reset every Monday),
+  "around you", a pinned You bar, and fan profiles with Calls settled on real simulated results.
+- **Calls, Cards, Sections, Search, Welcome**: crowd pick split on every Call; trading-card art
+  for Stand Cards; Sections show latest message and who is online; Search shows trending teams;
+  the welcome screen shows what is live right now.
+- **Honesty note**: other fans, chat and the crowd are simulated. Before inviting real people,
+  either connect the database (so the people are real) or label the simulated ones again.
+- Checks: `npm run check` (linter + type checker + 85 tests) passes.
 
 ## What is next
 
@@ -44,6 +72,6 @@
 
 ## Accounts and keys (names only, never values)
 
-- GitHub repo: `krichman2000/Standsapp`, connected. Code lives on branch `claude/great-lamport-4twc5u` (the repo's default branch).
+- GitHub repo: `krichman2000/Standsapp`, connected. Version 1 lives on branch `claude/great-lamport-4twc5u` (the repo's default branch); version 2 is on `claude/inspiring-cannon-8mk1i0`.
 - Supabase: an account is connected to Claude but **not used**. Decision: no database for now.
 - Vercel: to be connected.
