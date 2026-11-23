@@ -1,27 +1,12 @@
-// Weekly Clout-won totals for simulated fans, rolling over the last seven days.
-import { DAY } from '@/lib/format';
-import { createRng } from '@/lib/random';
-
-import { FANS, fanSkill } from './fans';
-
-/** Clout a demo fan won from Calls on a given UTC day. */
-function dailyWinnings(fanId: string, dayIndex: number): number {
-  const rng = createRng(`lb:${fanId}:${dayIndex}`);
-  if (!rng.chance(0.62)) return 0;
-  const skill = fanSkill(fanId);
-  return Math.round(rng.int(20, 900) * skill * (0.6 + rng.next()));
-}
+// Weekly Clout-won totals for simulated fans: a thin view over the ranking model,
+// kept so older callers see the same numbers as the leaderboards.
+import { FANS } from './fans';
+import { fanScore } from './ranking';
 
 /** Rolling 7-day Clout won, matching the server's weekly leaderboard rule. */
 export function fanWeeklyCloutWon(fanId: string, now: number): number {
-  const today = Math.floor(now / DAY);
-  const fractionOfToday = (now - today * DAY) / DAY;
-  let total = 0;
-  for (let d = today - 6; d <= today; d++) {
-    const amount = dailyWinnings(fanId, d);
-    total += d === today ? Math.round(amount * fractionOfToday) : amount;
-  }
-  return total;
+  const fan = FANS.find((f) => f.id === fanId);
+  return fan ? fanScore(fan, 'week', null, now) : 0;
 }
 
 export interface BoardRow {
@@ -37,6 +22,6 @@ export function demoBoard(now: number, fanIds?: string[]): BoardRow[] {
   const ids = fanIds ? new Set(fanIds) : null;
   return FANS.filter((f) => !ids || ids.has(f.id)).map((f) => ({
     userId: f.id, username: f.username, displayName: f.displayName, avatarSeed: f.avatarSeed,
-    cloutWon: fanWeeklyCloutWon(f.id, now), isMe: false,
+    cloutWon: fanScore(f, 'week', null, now), isMe: false,
   }));
 }

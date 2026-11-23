@@ -55,6 +55,7 @@ export default function RootLayout() {
               <Stack.Screen name="follows" />
               <Stack.Screen name="leaderboard" />
               <Stack.Screen name="standings/[sportId]" />
+              <Stack.Screen name="fan/[id]" />
               <Stack.Screen name="pack" options={{ presentation: 'modal' }} />
               <Stack.Screen name="account" options={{ presentation: 'modal' }} />
             </Stack.Protected>

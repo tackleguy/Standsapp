@@ -4,6 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { CompetitorBadge } from '@/components/Badge';
 import { GateCheckCard } from '@/components/GateCheckCard';
+import { MyRankCard } from '@/components/leaderboard/MyRankCard';
 import { Button } from '@/components/ui/Button';
 import { Icon, type IconName } from '@/components/ui/Icon';
 import { Avatar, SectionHeading, StatTile } from '@/components/ui/Misc';
@@ -49,8 +50,9 @@ export default function MeScreen() {
           <StatTile label="Tix" value={formatNumber(tix)} />
           <StatTile label="Cards" value={String(cards)} />
         </View>
+        <MyRankCard />
         <GateCheckCard />
-        <SectionHeading title="Calls record" right={<Text style={styles.link} onPress={() => router.push('/leaderboard')}>Leaderboard ›</Text>} />
+        <SectionHeading title="Calls record" right={<Text style={styles.link} onPress={() => router.push('/leaderboard')}>Leaderboards ›</Text>} />
         <View style={styles.tiles}>
           <StatTile label="Made" value={String(record.made)} />
           <StatTile label="Won" value={String(record.won)} />
