@@ -1,8 +1,9 @@
 // One card up close: flip it to see the back, favorite it, pin it to your showcase,
 // see every copy you own, or quick sell it for Tix.
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Animated, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { Animated, PanResponder, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 import { CardBack } from '@/components/cards/CardBack';
 import { serialText, StandCard } from '@/components/cards/StandCard';
@@ -14,11 +15,13 @@ import { Sheet } from '@/components/ui/Sheet';
 import { EmptyState } from '@/components/ui/StateViews';
 import { sportById } from '@/config/sports';
 import { competitorById, getWorld } from '@/data/api';
-import { SEASON, setMembers } from '@/data/demo/cards';
+import { cardFace, circulation, SET_NAME } from '@/data/demo/cardFacts';
+import { setMembers } from '@/data/demo/cards';
 import { eventMetaById } from '@/data/demo/schedule';
 import type { OwnedCard } from '@/data/types';
+import { useNow } from '@/hooks/useNow';
 import { useReduceMotion } from '@/hooks/useReduceMotion';
-import { currentTime, formatDay } from '@/lib/format';
+import { clamp, currentTime, formatDay } from '@/lib/format';
 import { tapLight, tapMedium } from '@/lib/haptics';
 import { isProtected, quickSellValue, rarityLabel } from '@/logic/cards';
 import { CARD_WIN_TIX, GAME_DAY_WIN_MULTIPLIER, PACK_TYPES, printRun, SHOWCASE_MAX } from '@/logic/rules';
@@ -42,6 +45,8 @@ export default function CardScreen() {
   const toggleFavorite = useUserStore((s) => s.toggleFavorite);
   const toggleShowcase = useUserStore((s) => s.toggleShowcase);
   const quickSell = useUserStore((s) => s.quickSell);
+  const mintCounts = useUserStore((s) => s.mintCounts);
+  const now = useNow(60_000);
   const [flipped, setFlipped] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const flip = useState(() => new Animated.Value(0))[0];
@@ -50,6 +55,22 @@ export default function CardScreen() {
     if (reduce) { flip.setValue(flipped ? 1 : 0); return; }
     Animated.spring(flip, { toValue: flipped ? 1 : 0, useNativeDriver: true, friction: 8 }).start();
   }, [flipped, flip, reduce]);
+
+  // Drag the card to tilt it in your hand; it springs back when you let go. Taps still flip it.
+  const width = Math.min(250, Math.floor(screen * 0.62));
+  const tilt = useState(() => new Animated.ValueXY({ x: 0, y: 0 }))[0];
+  const pan = useMemo(() => PanResponder.create({
+    onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 4 || Math.abs(g.dy) > 4,
+    onPanResponderMove: (_, g) => tilt.setValue({ x: clamp(g.dx / (width * 0.6), -1, 1), y: clamp(g.dy / (width * 0.8), -1, 1) }),
+    onPanResponderRelease: () => Animated.spring(tilt, { toValue: { x: 0, y: 0 }, friction: 5, useNativeDriver: false }).start(),
+    onPanResponderTerminate: () => Animated.spring(tilt, { toValue: { x: 0, y: 0 }, friction: 5, useNativeDriver: false }).start(),
+  }), [tilt, width]);
+  const rotateY = tilt.x.interpolate({ inputRange: [-1, 1], outputRange: ['-16deg', '16deg'] });
+  const rotateX = tilt.y.interpolate({ inputRange: [-1, 1], outputRange: ['12deg', '-12deg'] });
+  const glareX = tilt.x.interpolate({ inputRange: [-1, 1], outputRange: [width * 0.45, -width * 0.45] });
+  const glareY = tilt.y.interpolate({ inputRange: [-1, 1], outputRange: [width * 0.5, -width * 0.5] });
+  const glareOpacity = Animated.add(tilt.x.interpolate({ inputRange: [-1, 0, 1], outputRange: [0.5, 0, 0.5] }),
+    tilt.y.interpolate({ inputRange: [-1, 0, 1], outputRange: [0.3, 0, 0.3] }));
 
   const card = cards.find((c) => c.id === id);
   if (!card) {
@@ -64,7 +85,6 @@ export default function CardScreen() {
 
   const c = competitorById(card.competitorId);
   const sport = c ? sportById(c.sportId) : undefined;
-  const width = Math.min(250, Math.floor(screen * 0.62));
   const copies = cards.filter((x) => x.templateId === card.templateId).sort((a, b) => a.serial - b.serial);
   const favorite = !!card.favorite;
   const shown = showcase.includes(card.id);
@@ -73,6 +93,8 @@ export default function CardScreen() {
   const run = printRun(card.rarity, card.finish ?? 'base', !!card.eventId);
   const members = c ? setMembers(c.sportId) : [];
   const number = members.findIndex((m) => m.id === card.competitorId) + 1;
+  const face = cardFace(card.competitorId, now);
+  const circ = circulation(card.templateId, card.finish ?? 'base', card.eventId ?? null, mintCounts);
   const game = card.eventId ? eventMetaById(card.eventId) : undefined;
   const isTeamOfAthletes = !!c && c.kind === 'team' && getWorld().competitors.some((x) => x.parentId === c.id);
   const winTix = CARD_WIN_TIX[card.rarity];
@@ -97,8 +119,11 @@ export default function CardScreen() {
 
   const facts: [string, string][] = [
     ['Rarity', `${rarityLabel(card.rarity)}${card.finish === 'holo' ? ' · Holo parallel' : ''}${card.eventId ? ' · Game Day' : ''}`],
+    ['Overall', face ? `${face.rating} ${face.role}${face.form ? ` · in form +${face.form.boost} (${face.form.reason.toLowerCase()})` : ''}` : '–'],
+    ...(face?.rookie ? [['Rookie card', 'RC · first season'] as [string, string]] : []),
     ['Serial', run ? `#${card.serial} of ${run}` : `#${card.serial} (open print run)`],
-    ['Set', `${sport?.name ?? ''} ${SEASON} · card ${number > 0 ? number : '?'} of ${members.length}`],
+    ['Circulation', run ? `${Math.min(circ.minted, run)} of ${run} pulled so far` : `${circ.minted.toLocaleString()} pulled so far`],
+    ['Set', `${SET_NAME} · ${face?.checklist ?? ''} · ${sport?.name ?? ''} card ${number > 0 ? number : '?'} of ${members.length}`],
     ['Pulled from', `${sourceText(card)} · ${formatDay(card.acquiredAt)}`],
     ...(card.eventId ? [['Game', `${game?.title ?? 'Unknown game'}${card.wonGame ? ' · WON' : ''}`] as [string, string]] : []),
     ['Win bonus', `+${winTix} Tix each time ${c?.shortName ?? 'they'}${isTeamOfAthletes ? ' or one of its athletes' : ''} wins${card.eventId ? ` (${winTix * GAME_DAY_WIN_MULTIPLIER} at its Game Day game)` : ''}`],
@@ -109,18 +134,32 @@ export default function CardScreen() {
     <Screen>
       <Header title={c?.name ?? 'Card'} subtitle={`${rarityLabel(card.rarity)}${card.finish === 'holo' ? ' Holo' : ''} · ${sport?.name ?? ''}`} back />
       <ScrollView contentContainerStyle={styles.body}>
-        <Pressable onPress={() => { tapLight(); setFlipped((f) => !f); }} accessibilityRole="button"
-          accessibilityLabel={flipped ? 'Show the front of the card' : 'Flip the card to see its back'}
-          style={{ width, height: width * 1.4, alignSelf: 'center' }}>
-          <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ perspective: 900 }, { rotateY: front }] }]} pointerEvents="none">
-            <StandCard competitorId={card.competitorId} rarity={card.rarity} serial={card.serial} width={width}
-              finish={card.finish} eventId={card.eventId} favorite={favorite} won={card.wonGame} />
-          </Animated.View>
-          <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ perspective: 900 }, { rotateY: back }] }]} pointerEvents="none">
-            <CardBack card={card} width={width} />
-          </Animated.View>
-        </Pressable>
-        <Text style={styles.hint}>Tap the card to flip it</Text>
+        <Animated.View {...pan.panHandlers}
+          style={{ width, height: width * 1.4, alignSelf: 'center', transform: [{ perspective: 1000 }, { rotateX }, { rotateY }] }}>
+          <Pressable onPress={() => { tapLight(); setFlipped((f) => !f); }} accessibilityRole="button"
+            accessibilityLabel={flipped ? 'Show the front of the card' : 'Flip the card to see its back'}
+            style={StyleSheet.absoluteFill}>
+            <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ perspective: 900 }, { rotateY: front }] }]} pointerEvents="none">
+              <StandCard competitorId={card.competitorId} rarity={card.rarity} serial={card.serial} width={width}
+                finish={card.finish} eventId={card.eventId} favorite={favorite} won={card.wonGame} animated />
+            </Animated.View>
+            <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ perspective: 900 }, { rotateY: back }] }]} pointerEvents="none">
+              <CardBack card={card} width={width} />
+            </Animated.View>
+            <Animated.View pointerEvents="none" style={[styles.glare, { opacity: glareOpacity, transform: [{ translateX: glareX }, { translateY: glareY }] }]}>
+              <Svg width="100%" height="100%" viewBox="0 0 100 100">
+                <Defs>
+                  <RadialGradient id="card-glare" cx="50" cy="50" r="50" gradientUnits="userSpaceOnUse">
+                    <Stop offset="0" stopColor="#FFFFFF" stopOpacity={0.55} />
+                    <Stop offset="1" stopColor="#FFFFFF" stopOpacity={0} />
+                  </RadialGradient>
+                </Defs>
+                <Rect x="0" y="0" width="100" height="100" fill="url(#card-glare)" />
+              </Svg>
+            </Animated.View>
+          </Pressable>
+        </Animated.View>
+        <Text style={styles.hint}>Tap to flip · drag to tilt it in the light</Text>
 
         <View style={styles.actions}>
           <Button label={favorite ? 'Favorite' : 'Add to favorites'} icon={favorite ? 'star' : 'star-outline'} small
@@ -177,6 +216,7 @@ export default function CardScreen() {
 const styles = StyleSheet.create({
   body: { padding: space.lg, gap: space.md, paddingBottom: 60 },
   hint: { ...type.label, color: colors.textDim, textAlign: 'center' },
+  glare: { position: 'absolute', left: '-25%', top: '-25%', width: '150%', height: '150%', borderRadius: radius.md, overflow: 'hidden' },
   actions: { flexDirection: 'row', gap: space.sm },
   note: { ...type.label, color: colors.textDim, lineHeight: 17, fontWeight: '500' },
   fact: { flexDirection: 'row', gap: space.md, paddingVertical: space.sm, borderBottomWidth: 1, borderColor: colors.line },

@@ -80,9 +80,16 @@
 - **Calls, Cards, Sections, Search, Welcome**: crowd pick split on every Call; trading-card art
   for Stand Cards; Sections show latest message and who is online; Search shows trending teams;
   the welcome screen shows what is live right now.
+- **Stand Cards, like real cards** (researched against Topps/Panini, EA FC Ultimate Team, Sorare and
+  NBA Top Shot; merged with the Pack Store / Game Packs / holo / sets / trade-up work):
+  front has an overall rating and role, six sport-specific attributes, the set logo, rarity, an
+  RC mark for rookies, a checklist number (e.g. PFL-07) and a foil serial box (07/25); cards get
+  an IN FORM boost while their team is on a winning run; the back shows ratings with bars, live
+  season stats, recent results, the next event, circulation ("26 of 99 pulled") and fine print
+  with a production code; close-ups have a moving foil sheen and tilt in 3D when dragged.
 - **Honesty note**: other fans, chat and the crowd are simulated. Before inviting real people,
   either connect the database (so the people are real) or label the simulated ones again.
-- Checks: `npm run check` (linter + type checker + 85 tests) passes.
+- Checks: `npm run check` (linter + type checker + 115 tests) passes.
 
 ## What is next
 

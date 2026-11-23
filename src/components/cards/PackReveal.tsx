@@ -45,7 +45,7 @@ function FlipCard({ card, revealed, onPress, width }: { card: OwnedCard; reveale
       </Animated.View>
       <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ perspective: 800 }, { rotateY: front }] }]}>
         <StandCard competitorId={card.competitorId} rarity={card.rarity} serial={card.serial} width={width}
-          finish={card.finish} eventId={card.eventId} />
+          finish={card.finish} eventId={card.eventId} animated={revealed && (BIG(card) || card.finish === 'holo')} />
       </Animated.View>
     </Pressable>
   );
