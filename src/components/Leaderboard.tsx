@@ -7,7 +7,7 @@ import { FlatList, RefreshControl, ScrollView, StyleSheet, Text, View } from 're
 
 import { SPORTS, sportById } from '@/config/sports';
 import {
-  countdown, movementWindowLabel, PERIODS, type BoardEntry, type BoardScope, type Period,
+  countdown, movementWindowLabel, PERIODS, type BoardEntry, type BoardScope, type Metric, type Period,
 } from '@/data/demo/ranking';
 import { SEASON_START } from '@/data/demo/season';
 import { useNow } from '@/hooks/useNow';
@@ -32,27 +32,33 @@ type Item =
 
 const SEASON_LABEL = new Date(SEASON_START).toLocaleDateString([], { day: 'numeric', month: 'short', timeZone: 'UTC' });
 
-export function Leaderboard({ fanIds, includeMe = true, initialPeriod = 'week' }: {
+export function Leaderboard({ fanIds, includeMe = true, initialPeriod = 'week', initialMetric = 'clout', showMetric = false }: {
   fanIds?: string[]; includeMe?: boolean; initialPeriod?: Period;
+  /** Which board opens first: Clout won from Calls, or Tix earned by cards. */
+  initialMetric?: Metric;
+  /** Show the Calls / Cards switch. */
+  showMetric?: boolean;
 }) {
   const router = useRouter();
   const now = useNow(15_000);
+  const [metric, setMetric] = useState<Metric>(initialMetric);
   const [period, setPeriod] = useState<Period>(initialPeriod);
   const [scope, setScope] = useState<string>('global');
   const followedFans = useUserStore((s) => s.followedFans);
   const followedSports = useUserStore((s) => s.followedSports);
   const isGuest = useUserStore((s) => s.profile.isGuest);
   const group = !!fanIds || scope === 'following';
-  const sportId = !fanIds && scope !== 'global' && scope !== 'following' ? scope : null;
+  // Card earnings are ranked globally or against the fans you follow, not by sport.
+  const sportId = metric === 'clout' && !fanIds && scope !== 'global' && scope !== 'following' ? scope : null;
 
   const boardScope = useMemo<BoardScope>(() => {
     if (fanIds) return { kind: 'group', fanIds };
     if (scope === 'following') return { kind: 'group', fanIds: followedFans };
-    if (scope === 'global') return { kind: 'global' };
-    return { kind: 'sport', sportId: scope };
-  }, [fanIds, scope, followedFans]);
-  const me = useMeInput(period, sportId, includeMe, now);
-  const board = useBoard(period, boardScope, me);
+    if (scope === 'global' || !sportId) return { kind: 'global' };
+    return { kind: 'sport', sportId };
+  }, [fanIds, scope, followedFans, sportId]);
+  const me = useMeInput(period, sportId, includeMe, now, metric);
+  const board = useBoard(period, boardScope, me, metric);
   const view = board.data;
 
   const items = useMemo<Item[]>(() => {
@@ -72,10 +78,17 @@ export function Leaderboard({ fanIds, includeMe = true, initialPeriod = 'week' }
 
   const info = !view ? '' : period === 'today' && view.resetsAt
     ? `Resets in ${countdown(view.resetsAt - now)}`
-    : period === 'week' ? `Rolling 7 days · tiers lock in ${countdown(view.tiersUpdateAt - now)}` : `Since ${SEASON_LABEL}`;
+    : period === 'week' ? (metric === 'tix' ? 'Rolling 7 days' : `Rolling 7 days · tiers lock in ${countdown(view.tiersUpdateAt - now)}`) : `Since ${SEASON_LABEL}`;
 
   const header = (
     <View>
+      {showMetric ? (
+        <View style={styles.controls}>
+          <Segmented value={metric} onChange={setMetric} options={[
+            { value: 'clout', label: 'Calls · Clout won' }, { value: 'tix', label: 'Cards · Tix earned' },
+          ]} />
+        </View>
+      ) : null}
       <View style={styles.controls}>
         <Segmented value={period} onChange={setPeriod} options={PERIODS.map((p) => ({ value: p.id, label: p.label }))} />
       </View>
@@ -84,17 +97,20 @@ export function Leaderboard({ fanIds, includeMe = true, initialPeriod = 'week' }
           <Chip label="Global" icon="globe-outline" selected={scope === 'global'} onPress={() => setScope('global')} />
           <Chip label="Following" icon="people" selected={scope === 'following'} onPress={() => setScope('following')}
             count={followedFans.length || undefined} />
-          {sportOrder.map((id) => (
+          {metric === 'clout' ? sportOrder.map((id) => (
             <Chip key={id} label={sportById(id)?.name ?? id} icon={sportIcon(id)} selected={scope === id} onPress={() => setScope(id)} />
-          ))}
+          )) : null}
         </ScrollView>
       ) : null}
       {view ? (
         <View style={styles.info}>
-          <Text style={styles.infoStrong}>{group ? `${view.players} ${view.players === 1 ? 'fan' : 'fans'}` : `${formatNumber(view.ranked)} ranked`}</Text>
+          <Text style={styles.infoStrong}>{group ? `${view.players} ${view.players === 1 ? 'fan' : 'fans'}` : `${formatNumber(view.ranked)} ${metric === 'tix' ? 'collectors' : 'ranked'}`}</Text>
           <Icon name="time-outline" size={13} color={colors.textDim} />
           <Text style={styles.infoText} numberOfLines={1}>{info}</Text>
         </View>
+      ) : null}
+      {metric === 'tix' && includeMe && !fanIds ? (
+        <Text style={styles.earnLink} onPress={() => router.push('/earnings')} accessibilityRole="link">Your card earnings ›</Text>
       ) : null}
       {view && view.top.length >= 3 && view.top[2].rank !== null ? <Podium entries={view.top.slice(0, 3)} onOpen={open} /> : null}
       {view && items.length > 0 ? (
@@ -106,7 +122,8 @@ export function Leaderboard({ fanIds, includeMe = true, initialPeriod = 'week' }
   const empty = scope === 'following' && !fanIds && followedFans.length === 0 ? (
     <EmptyState icon="people" title="Race the fans you follow" body="Open any fan from the leaderboard or a chat and tap Follow. They show up here, ranked against you." />
   ) : view && view.top.length === 0 ? (
-    <EmptyState icon="podium" title="Nobody on the board yet" body="The first winning Calls of the day land here as games finish." />
+    <EmptyState icon="podium" title="Nobody on the board yet"
+      body={metric === 'tix' ? 'The first card earnings of the day land here as games finish.' : 'The first winning Calls of the day land here as games finish.'} />
   ) : null;
 
   return (
@@ -139,6 +156,7 @@ const styles = StyleSheet.create({
   info: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: space.lg, paddingTop: space.md },
   infoStrong: { fontFamily: fonts.bold, fontSize: 14, color: colors.text, letterSpacing: 0.5, marginRight: 4 },
   infoText: { ...type.label, color: colors.textDim, flex: 1 },
+  earnLink: { ...type.label, color: colors.accent, paddingHorizontal: space.lg, paddingTop: space.sm },
   legend: { ...type.label, fontSize: 10, color: colors.loss, textAlign: 'right', paddingHorizontal: space.lg, paddingTop: space.md, paddingBottom: 4 },
   gap: { alignItems: 'center', paddingVertical: space.sm },
   gapDots: { color: colors.loss, letterSpacing: 4 },

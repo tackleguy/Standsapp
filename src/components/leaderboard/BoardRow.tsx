@@ -50,10 +50,11 @@ function BoardRowImpl({ entry, onPress }: Props) {
   }, [entry.rank, flash, reduce]);
   const tint = flash.interpolate({ inputRange: [0, 1], outputRange: ['rgba(0,0,0,0)', dir === 'up' ? 'rgba(61,220,151,0.22)' : 'rgba(255,107,120,0.22)'] });
 
-  const sub = entry.streak >= 3 ? `🔥${entry.streak}` : entry.winRate > 0 ? `${entry.winRate}%` : null;
+  const tix = entry.cards !== null;
+  const sub = tix ? `🃏 ${formatNumber(entry.cards ?? 0)}` : entry.streak >= 3 ? `🔥${entry.streak}` : entry.winRate > 0 ? `${entry.winRate}%` : null;
   return (
     <Pressable onPress={onPress} accessibilityRole="button"
-      accessibilityLabel={`Rank ${entry.rank ?? 'unranked'}, ${entry.isMe ? 'you' : entry.displayName}, ${entry.score} Clout`}>
+      accessibilityLabel={`Rank ${entry.rank ?? 'unranked'}, ${entry.isMe ? 'you' : entry.displayName}, ${entry.score} ${tix ? 'Tix' : 'Clout'}`}>
       {({ pressed }) => (
         <Animated.View style={[styles.row, entry.isMe && styles.rowMe, { backgroundColor: entry.isMe ? 'rgba(255,182,39,0.09)' : tint },
           pressed && styles.pressed]}>
@@ -72,7 +73,7 @@ function BoardRowImpl({ entry, onPress }: Props) {
           </View>
           <View style={styles.scoreCol}>
             <Text style={styles.score} numberOfLines={1}>{entry.score > 0 ? `+${formatNumber(entry.score)}` : '0'}</Text>
-            <Text style={styles.unit}>CLOUT</Text>
+            <Text style={styles.unit}>{tix ? 'TIX' : 'CLOUT'}</Text>
           </View>
         </Animated.View>
       )}

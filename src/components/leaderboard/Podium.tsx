@@ -18,7 +18,7 @@ function Step({ entry, place, onPress }: { entry: BoardEntry; place: 0 | 1 | 2; 
   const first = place === 0;
   return (
     <Pressable onPress={onPress} style={styles.step} accessibilityRole="button"
-      accessibilityLabel={`Number ${place + 1}, ${entry.isMe ? 'you' : entry.displayName}, ${entry.score} Clout`}>
+      accessibilityLabel={`Number ${place + 1}, ${entry.isMe ? 'you' : entry.displayName}, ${entry.score} ${entry.cards !== null ? 'Tix' : 'Clout'}`}>
       {first ? <MaterialCommunityIcons name="crown" size={26} color={colors.gold} style={styles.crown} /> : <View style={{ height: 26 }} />}
       <FanAvatar seed={entry.avatarSeed} name={entry.displayName} size={first ? 70 : 54} ring={medal} />
       <Text style={[styles.name, entry.isMe && { color: colors.accent }]} numberOfLines={1}>{entry.isMe ? 'You' : entry.displayName}</Text>

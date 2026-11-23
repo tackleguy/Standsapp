@@ -5,7 +5,8 @@ import { useMemo } from 'react';
 
 import { fanProfile } from '@/data/demo/fanProfile';
 import {
-  buildBoard, myScore, referenceTime, weekCheckpoint, type BoardScope, type BoardView, type MeInput, type Period,
+  buildBoard, myCardEarnings, myScore, referenceTime, weekCheckpoint, type BoardScope, type BoardView, type MeInput,
+  type Metric, type Period,
 } from '@/data/demo/ranking';
 import { currentTime } from '@/lib/format';
 import { summarizeRecord } from '@/logic/predictions';
@@ -28,8 +29,9 @@ function currentStreak(predictions: { status: string; settledAt: number | null }
 }
 
 /** What the ranking model needs to know about you, for a period and scope. */
-export function useMeInput(period: Period, sportId: string | null, includeMe: boolean, now: number): MeInput | null {
+export function useMeInput(period: Period, sportId: string | null, includeMe: boolean, now: number, metric: Metric = 'clout'): MeInput | null {
   const profile = useUserStore((s) => s.profile);
+  const cards = useUserStore((s) => s.cards.length);
   const ledger = useUserStore((s) => s.ledger);
   const predictions = useUserStore((s) => s.predictions);
   const followedSports = useUserStore((s) => s.followedSports);
@@ -43,13 +45,15 @@ export function useMeInput(period: Period, sportId: string | null, includeMe: bo
       displayName: profile.displayName,
       avatarSeed: profile.avatarSeed,
       favoriteSportId: followedSports[0] ?? null,
-      score: myScore(ledger, predictions, period, sportId, bucket),
-      refScore: myScore(ledger, predictions, period, sportId, referenceTime(period, bucket)),
+      score: metric === 'tix' ? myCardEarnings(ledger, period, bucket) : myScore(ledger, predictions, period, sportId, bucket),
+      refScore: metric === 'tix' ? myCardEarnings(ledger, period, referenceTime(period, bucket))
+        : myScore(ledger, predictions, period, sportId, referenceTime(period, bucket)),
       checkpointScore: myScore(ledger, predictions, 'week', null, weekCheckpoint(bucket)),
       winRate: record.winRate,
       streak: currentStreak(predictions),
+      cards,
     };
-  }, [includeMe, profile, ledger, predictions, followedSports, period, sportId, bucket]);
+  }, [includeMe, profile, ledger, predictions, followedSports, period, sportId, bucket, metric, cards]);
 }
 
 function scopeKey(scope: BoardScope): string {
@@ -57,10 +61,10 @@ function scopeKey(scope: BoardScope): string {
 }
 
 /** A leaderboard for a period and scope, with you placed in it. */
-export function useBoard(period: Period, scope: BoardScope, me: MeInput | null) {
+export function useBoard(period: Period, scope: BoardScope, me: MeInput | null, metric: Metric = 'clout') {
   return useQuery<BoardView>({
-    queryKey: ['board', period, scopeKey(scope), me],
-    queryFn: () => asPromise(() => buildBoard(period, scope, currentTime(), me)),
+    queryKey: ['board', metric, period, scopeKey(scope), me],
+    queryFn: () => asPromise(() => buildBoard(period, scope, currentTime(), me, metric)),
     refetchInterval: 15_000,
     placeholderData: keepPreviousData,
   });

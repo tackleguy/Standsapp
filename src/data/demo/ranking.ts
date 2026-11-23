@@ -8,12 +8,16 @@
 import { SPORTS } from '@/config/sports';
 import { DAY, HOUR, MINUTE } from '@/lib/format';
 import { createRng, hashText } from '@/lib/random';
+import { CARD_EARNED } from '@/logic/earnings';
 
 import type { Fan } from '../types';
 import { FANS, fanActivity, fanById, fanSkill, syntheticFan } from './fans';
 import { SEASON_START } from './season';
 
 export type Period = 'today' | 'week' | 'season';
+/** What a board ranks: Clout won from Calls, or Tix earned by Stand Cards. */
+export type Metric = 'clout' | 'tix';
+
 export type TierId = 'bronze' | 'silver' | 'gold' | 'platinum' | 'diamond' | 'legend';
 
 export const PERIODS: { id: Period; label: string }[] = [
@@ -122,13 +126,14 @@ const SPORT_SHARE: Record<string, number> = {
 };
 
 /** Players with at least one winning Call in the period (the people who are ranked). */
-export function rankedPlayers(period: Period, sportId: string | null, now: number): number {
+export function rankedPlayers(period: Period, sportId: string | null, now: number, metric: Metric = 'clout'): number {
   const share = sportId ? SPORT_SHARE[sportId] ?? 0.05 : 1;
+  const collectors = metric === 'tix' ? 0.68 : 1;
   let active: number;
   if (period === 'today') {
     const f = (now - utcDayStart(now)) / DAY;
-    active = 0.31 * (0.12 + 0.88 * Math.pow(f, 0.75));
-  } else active = period === 'week' ? 0.58 : 0.83;
+    active = 0.31 * (0.12 + 0.88 * Math.pow(f, 0.75)) * collectors;
+  } else active = (period === 'week' ? 0.58 : 0.83) * collectors;
   return Math.max(40, Math.round(totalPlayers(now) * active * share));
 }
 
@@ -143,15 +148,22 @@ interface Win {
 }
 
 const SPORT_IDS = SPORTS.map((s) => s.id);
-const traitCache = new Map<string, { skill: number; activity: number }>();
+const traitCache = new Map<string, { skill: number; activity: number; collector: number }>();
 
 function traits(id: string) {
   let t = traitCache.get(id);
   if (!t) {
-    t = { skill: fanSkill(id), activity: fanActivity(id) };
+    // How big a fan's Stand Card collection is, 0..1 (a few are serious collectors).
+    const collector = Math.pow((hashText(`collector:${id}`) % 1000) / 1000, 1.6);
+    t = { skill: fanSkill(id), activity: fanActivity(id), collector };
     traitCache.set(id, t);
   }
   return t;
+}
+
+/** How many Stand Cards a fan owns (shown on the card earnings board). */
+export function fanCollection(fan: Fan): number {
+  return 12 + Math.round(traits(fan.id).collector * 420 + (hashText(`cards:${fan.id}`) % 25));
 }
 
 /**
@@ -159,8 +171,8 @@ function traits(id: string) {
  * for every fan and every day of the season, so it uses a bare seeded generator
  * (mulberry32, same as lib/random) instead of building a full Rng each time.
  */
-function rollDay(fan: Fan, day: number): Win[] {
-  let a = hashText(`wins:${fan.id}:${day}`);
+function rollDay(fan: Fan, day: number, metric: Metric = 'clout'): Win[] {
+  let a = hashText(`${metric === 'tix' ? 'tix' : 'wins'}:${fan.id}:${day}`);
   const next = () => {
     a = (a + 0x6d2b79f5) >>> 0;
     let t = a;
@@ -168,7 +180,8 @@ function rollDay(fan: Fan, day: number): Win[] {
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
-  const { skill, activity } = traits(fan.id);
+  const { skill, activity, collector } = traits(fan.id);
+  if (metric === 'tix') return rollCardDay(fan, day, collector, next);
   if (next() >= 0.3 + activity * 0.6) return [];
   // 1 + a Poisson count with mean activity * 3.
   const limit = Math.exp(-activity * 3);
@@ -191,13 +204,37 @@ function rollDay(fan: Fan, day: number): Win[] {
   return wins.sort((x, y) => x.at - y.at);
 }
 
+/**
+ * Tix a fan's Stand Cards earned on one UTC day: win bonuses and fantasy points
+ * landing as games finish, and now and then a finished set.
+ */
+function rollCardDay(fan: Fan, day: number, collector: number, next: () => number): Win[] {
+  if (next() >= 0.22 + collector * 0.7) return [];
+  const limit = Math.exp(-(1 + collector * 6));
+  let n = 0;
+  for (let p = next(); p > limit && n < 16; p *= next()) n++;
+  const wins: Win[] = [];
+  for (let k = 0; k <= n; k++) {
+    const bell = (next() + next() + next() + next() - 2) / 2;
+    const timeOfDay = next() < 0.5 ? next() : Math.min(0.995, Math.max(0.01, 0.68 + bell * 0.42));
+    const setReward = next() < 0.015 ? 120 + Math.floor(next() * 260) : 0;
+    const base = 1 + Math.floor(next() * 24);
+    wins.push({
+      at: day * DAY + Math.round(timeOfDay * DAY),
+      amount: setReward || Math.max(1, Math.round(base * (0.45 + collector * 1.3))),
+      sportId: next() < 0.62 ? fan.favoriteSportId : SPORT_IDS[Math.floor(next() * SPORT_IDS.length)],
+    });
+  }
+  return wins.sort((x, y) => x.at - y.at);
+}
+
 const dayCache = new Map<string, Win[]>();
 
-function dayWins(fan: Fan, day: number): Win[] {
-  const key = `${fan.id}:${day}`;
+function dayWins(fan: Fan, day: number, metric: Metric = 'clout'): Win[] {
+  const key = `${metric}:${fan.id}:${day}`;
   let wins = dayCache.get(key);
   if (!wins) {
-    wins = rollDay(fan, day);
+    wins = rollDay(fan, day, metric);
     if (dayCache.size > 8000) dayCache.clear();
     dayCache.set(key, wins);
   }
@@ -217,16 +254,17 @@ interface DayTotal { all: number; bySport: Record<string, number> }
 const seasonDays = new Map<string, DayTotal[]>();
 
 /** Season total for every whole day before yesterday. */
-function seasonBase(fan: Fan, sportId: string | null, todayIndex: number): number {
+function seasonBase(fan: Fan, sportId: string | null, todayIndex: number, metric: Metric = 'clout'): number {
   const count = todayIndex - 1 - SEASON_DAY0;
-  let days = seasonDays.get(fan.id);
+  const cacheKey = `${metric}:${fan.id}`;
+  let days = seasonDays.get(cacheKey);
   if (!days) {
     days = [];
-    seasonDays.set(fan.id, days);
+    seasonDays.set(cacheKey, days);
   }
   for (let k = days.length; k < count; k++) {
     const total: DayTotal = { all: 0, bySport: {} };
-    for (const w of rollDay(fan, SEASON_DAY0 + k)) {
+    for (const w of rollDay(fan, SEASON_DAY0 + k, metric)) {
       total.all += w.amount;
       total.bySport[w.sportId] = (total.bySport[w.sportId] ?? 0) + w.amount;
     }
@@ -237,20 +275,20 @@ function seasonBase(fan: Fan, sportId: string | null, todayIndex: number): numbe
   return sum;
 }
 
-/** Clout a fan has won in a period, as of time `t`. */
-export function fanScore(fan: Fan, period: Period, sportId: string | null, t: number): number {
+/** Clout a fan has won (or Tix their cards earned) in a period, as of time `t`. */
+export function fanScore(fan: Fan, period: Period, sportId: string | null, t: number, metric: Metric = 'clout'): number {
   const start = windowStart(period, t);
   const todayIndex = Math.floor(t / DAY);
   let total = 0;
   let firstDay: number;
   if (period === 'season') {
-    total += seasonBase(fan, sportId, todayIndex);
+    total += seasonBase(fan, sportId, todayIndex, metric);
     firstDay = Math.max(SEASON_DAY0, todayIndex - 1);
   } else {
     firstDay = Math.floor((start - RAMP) / DAY);
   }
   for (let d = firstDay; d <= todayIndex; d++) {
-    for (const w of dayWins(fan, d)) {
+    for (const w of dayWins(fan, d, metric)) {
       if (w.at > t) break;
       if (sportId && w.sportId !== sportId) continue;
       // Rolling windows let old wins fade out over the same few minutes.
@@ -306,21 +344,21 @@ interface CoreBoard {
 
 const coreCache = new Map<string, CoreBoard>();
 
-function coreBoard(period: Period, sportId: string | null, t: number): CoreBoard {
-  const key = `${period}:${sportId ?? '*'}:${Math.floor(t / 10_000)}`;
+function coreBoard(period: Period, sportId: string | null, t: number, metric: Metric = 'clout'): CoreBoard {
+  const key = `${metric}:${period}:${sportId ?? '*'}:${Math.floor(t / 10_000)}`;
   const hit = coreCache.get(key);
   if (hit) return hit;
   const scores = new Map<string, number>();
   const positive: Standing[] = [];
   for (const fan of FANS) {
-    const score = fanScore(fan, period, sportId, t);
+    const score = fanScore(fan, period, sportId, t, metric);
     scores.set(fan.id, score);
     if (score > 0) positive.push({ fan, score });
   }
   positive.sort((a, b) => b.score - a.score || a.fan.id.localeCompare(b.fan.id));
   const top = positive.slice(0, TOP_COUNT);
   const board: CoreBoard = {
-    ranked: Math.max(rankedPlayers(period, sportId, t), positive.length + 25),
+    ranked: Math.max(rankedPlayers(period, sportId, t, metric), positive.length + 25),
     top,
     cutoff: top.length ? top[top.length - 1].score : 1,
     scores,
@@ -371,6 +409,8 @@ export interface BoardEntry {
   tier: TierId;
   winRate: number;
   streak: number;
+  /** Stand Cards owned (card earnings boards only). */
+  cards: number | null;
   isMe: boolean;
   synthetic: boolean;
 }
@@ -387,10 +427,13 @@ export interface MeInput {
   checkpointScore: number;
   winRate: number;
   streak: number;
+  /** Your Stand Cards count, for the card earnings board. */
+  cards?: number;
 }
 
 export interface BoardView {
   period: Period;
+  metric: Metric;
   players: number;
   ranked: number;
   /** Ranked from 1, includes you if you are inside it. */
@@ -417,21 +460,21 @@ export function resolveFan(id: string): Fan | undefined {
  * Wherever they appear later (their profile, your Following board) they keep
  * that rank on that board, and their other totals are scaled to match.
  */
-function parseSynthetic(id: string): { period: Period; sportId: string | null; slot: number } | null {
-  const [tag, period, scope, slot] = id.split('~');
+function parseSynthetic(id: string): { period: Period; sportId: string | null; slot: number; metric: Metric } | null {
+  const [tag, period, scope, slot, metric] = id.split('~');
   if (tag !== 'syn' || !PERIODS.some((p) => p.id === period) || !scope || !Number(slot)) return null;
-  return { period: period as Period, sportId: scope === 'global' ? null : scope, slot: Number(slot) };
+  return { period: period as Period, sportId: scope === 'global' ? null : scope, slot: Number(slot), metric: metric === 'tix' ? 'tix' : 'clout' };
 }
 
 /** A fan's total for a board: exact for named fans, anchored to their slot for synthetic ones. */
-export function displayScore(fan: Fan, period: Period, sportId: string | null, t: number): number {
+export function displayScore(fan: Fan, period: Period, sportId: string | null, t: number, metric: Metric = 'clout'): number {
   const syn = parseSynthetic(fan.id);
-  if (!syn) return fanScore(fan, period, sportId, t);
-  const core = coreBoard(syn.period, syn.sportId, t);
+  if (!syn || syn.metric !== metric) return fanScore(fan, period, sportId, t, metric);
+  const core = coreBoard(syn.period, syn.sportId, t, metric);
   const anchor = scoreAt(Math.min(syn.slot, core.ranked), core);
   if (period === syn.period && sportId === syn.sportId) return anchor;
-  const factor = anchor / Math.max(30, fanScore(fan, syn.period, syn.sportId, t));
-  return Math.round(fanScore(fan, period, sportId, t) * factor);
+  const factor = anchor / Math.max(30, fanScore(fan, syn.period, syn.sportId, t, metric));
+  return Math.round(fanScore(fan, period, sportId, t, metric) * factor);
 }
 
 /** Tier each fan earned at the last weekly checkpoint (global, last 7 days). */
@@ -453,20 +496,21 @@ function movementOf(rank: number | null, refRank: number | null, refScore: numbe
   return refRank - rank;
 }
 
-function fanEntry(fan: Fan, rank: number | null, score: number, movement: Movement, now: number, tier?: TierId): BoardEntry {
+function fanEntry(fan: Fan, rank: number | null, score: number, movement: Movement, now: number, metric: Metric = 'clout'): BoardEntry {
   const form = fanForm(fan, now);
   return {
     id: fan.id, rank, username: fan.username, displayName: fan.displayName, avatarSeed: fan.avatarSeed,
-    favoriteSportId: fan.favoriteSportId, score, movement, tier: tier ?? lockedTier(fan, now),
-    winRate: form.winRate, streak: form.streak, isMe: false, synthetic: fan.id.startsWith('syn~'),
+    favoriteSportId: fan.favoriteSportId, score, movement, tier: lockedTier(fan, now),
+    winRate: form.winRate, streak: form.streak, cards: metric === 'tix' ? fanCollection(fan) : null,
+    isMe: false, synthetic: fan.id.startsWith('syn~'),
   };
 }
 
-function meEntry(me: MeInput, rank: number | null, movement: Movement, now: number): BoardEntry {
+function meEntry(me: MeInput, rank: number | null, movement: Movement, now: number, metric: Metric = 'clout'): BoardEntry {
   return {
     id: 'me', rank, username: me.username, displayName: me.displayName, avatarSeed: me.avatarSeed,
     favoriteSportId: me.favoriteSportId, score: me.score, movement, tier: lockedTierForScore(me.checkpointScore, now),
-    winRate: me.winRate, streak: me.streak, isMe: true, synthetic: false,
+    winRate: me.winRate, streak: me.streak, cards: metric === 'tix' ? me.cards ?? 0 : null, isMe: true, synthetic: false,
   };
 }
 
@@ -474,10 +518,10 @@ function scopeKey(scope: BoardScope): string {
   return scope.kind === 'sport' ? scope.sportId : scope.kind;
 }
 
-function groupBoard(period: Period, fanIds: string[], now: number, me: MeInput | null): BoardView {
+function groupBoard(period: Period, fanIds: string[], now: number, me: MeInput | null, metric: Metric): BoardView {
   const ref = referenceTime(period, now);
   const fans = [...new Set(fanIds)].map(resolveFan).filter((f): f is Fan => !!f);
-  const rows = fans.map((fan) => ({ fan, score: displayScore(fan, period, null, now), refScore: displayScore(fan, period, null, ref) }));
+  const rows = fans.map((fan) => ({ fan, score: displayScore(fan, period, null, now, metric), refScore: displayScore(fan, period, null, ref, metric) }));
   type Row = { id: string; score: number; refScore: number; fan: Fan | null };
   const all: Row[] = rows.map((r) => ({ id: r.fan.id, ...r }));
   if (me) all.push({ id: 'me', score: me.score, refScore: me.refScore, fan: null });
@@ -489,14 +533,14 @@ function groupBoard(period: Period, fanIds: string[], now: number, me: MeInput |
     const rank = row.score > 0 ? i + 1 : null;
     const refIdx = before.indexOf(id);
     const movement = movementOf(rank, refIdx >= 0 ? refIdx + 1 : null, row.refScore);
-    return row.fan ? fanEntry(row.fan, rank, row.score, movement, now) : meEntry(me!, rank, movement, now);
+    return row.fan ? fanEntry(row.fan, rank, row.score, movement, now, metric) : meEntry(me!, rank, movement, now, metric);
   });
   // Unranked people still show, at the bottom, in their own order.
   const ranked = entries.filter((e) => e.rank !== null).length;
   const myEntry = entries.find((e) => e.isMe) ?? null;
   const projected = myEntry?.tier ?? 'bronze';
   return {
-    period, players: entries.length, ranked, top: entries, me: myEntry, around: [], next: null, projectedTier: projected,
+    period, metric, players: entries.length, ranked, top: entries, me: myEntry, around: [], next: null, projectedTier: projected,
     tiersUpdateAt: nextWeekCheckpoint(now), resetsAt: resetsAt(period, now),
   };
 }
@@ -505,16 +549,16 @@ function groupBoard(period: Period, fanIds: string[], now: number, me: MeInput |
  * A full leaderboard view. Named fans are scored exactly; you are placed by your
  * own score; the people around you come from the curve, the same on every phone.
  */
-export function buildBoard(period: Period, scope: BoardScope, now: number, me: MeInput | null): BoardView {
-  if (scope.kind === 'group') return groupBoard(period, scope.fanIds, now, me);
+export function buildBoard(period: Period, scope: BoardScope, now: number, me: MeInput | null, metric: Metric = 'clout'): BoardView {
+  if (scope.kind === 'group') return groupBoard(period, scope.fanIds, now, me, metric);
   const sportId = scope.kind === 'sport' ? scope.sportId : null;
-  const core = coreBoard(period, sportId, now);
+  const core = coreBoard(period, sportId, now, metric);
   const ref = referenceTime(period, now);
-  const coreRef = coreBoard(period, sportId, ref);
+  const coreRef = coreBoard(period, sportId, ref, metric);
 
   const top: BoardEntry[] = core.top.map((s, i) => {
     const refScore = coreRef.scores.get(s.fan.id) ?? 0;
-    return fanEntry(s.fan, i + 1, s.score, movementOf(i + 1, rankOf(refScore, coreRef), refScore), now);
+    return fanEntry(s.fan, i + 1, s.score, movementOf(i + 1, rankOf(refScore, coreRef), refScore), now, metric);
   });
 
   let mine: BoardEntry | null = null;
@@ -523,7 +567,7 @@ export function buildBoard(period: Period, scope: BoardScope, now: number, me: M
   let next: BoardView['next'] = null;
   if (me) {
     const rank = rankOf(me.score, core);
-    mine = meEntry(me, rank, movementOf(rank, rankOf(me.refScore, coreRef), me.refScore), now);
+    mine = meEntry(me, rank, movementOf(rank, rankOf(me.refScore, coreRef), me.refScore), now, metric);
     projectedTier = tierFor(rank, core.ranked);
     if (rank !== null && rank <= core.top.length) {
       top.splice(rank - 1, 0, mine);
@@ -532,18 +576,18 @@ export function buildBoard(period: Period, scope: BoardScope, now: number, me: M
     } else if (rank !== null) {
       const slots = [rank - 2, rank - 1, rank + 1, rank + 2].filter((r) => r > core.top.length && r <= core.ranked);
       around = slots.map((slot) => {
-        const id = `syn~${period}~${scopeKey(scope)}~${slot}`;
+        const id = `syn~${period}~${scopeKey(scope)}~${slot}${metric === 'tix' ? '~tix' : ''}`;
         const fan = syntheticFan(id, id);
         const wobble = createRng(`move:${id}:${Math.floor(now / HOUR)}`);
         const move: Movement = wobble.chance(0.12) ? 'new' : wobble.int(-6, 9);
         const score = Math.max(slot < rank ? me.score : 1, scoreAt(slot, core));
-        return fanEntry(fan, slot, slot > rank ? Math.min(score, me.score) : score, move, now);
+        return fanEntry(fan, slot, slot > rank ? Math.min(score, me.score) : score, move, now, metric);
       });
       around.push(mine);
       around.sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0));
     }
     // Tiers are earned on the global 7-day board, so only that board shows the next one.
-    const target = period === 'week' && scope.kind === 'global' ? nextTier(projectedTier) : null;
+    const target = metric === 'clout' && period === 'week' && scope.kind === 'global' ? nextTier(projectedTier) : null;
     if (target) {
       const targetRank = Math.max(1, Math.floor(target.top * core.ranked));
       const needed = scoreAt(Math.min(targetRank, core.ranked), core) + 1;
@@ -552,7 +596,7 @@ export function buildBoard(period: Period, scope: BoardScope, now: number, me: M
   }
 
   return {
-    period, players: totalPlayers(now), ranked: core.ranked, top, me: mine, around, next, projectedTier,
+    period, metric, players: totalPlayers(now), ranked: core.ranked, top, me: mine, around, next, projectedTier,
     tiersUpdateAt: nextWeekCheckpoint(now), resetsAt: resetsAt(period, now),
   };
 }
@@ -585,6 +629,18 @@ export function myScore(
     if (l.currency !== 'clout' || l.reason !== 'prediction_win' || l.at > t) continue;
     if (period === 'week' ? l.at <= start : l.at < start) continue;
     if (sportOf && sportOf.get(l.ref ?? '') !== sportId) continue;
+    total += l.amount;
+  }
+  return total;
+}
+
+/** Tix your Stand Cards earned in a period (win bonuses, fantasy points, set rewards). */
+export function myCardEarnings(ledger: LedgerLike[], period: Period, t: number): number {
+  const start = windowStart(period, t);
+  let total = 0;
+  for (const l of ledger) {
+    if (l.currency !== 'tix' || l.at > t || !CARD_EARNED.includes(l.reason)) continue;
+    if (period === 'week' ? l.at <= start : l.at < start) continue;
     total += l.amount;
   }
   return total;

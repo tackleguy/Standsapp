@@ -31,9 +31,13 @@ export function YouBar({ view, isGuest, now, group }: { view: BoardView | undefi
         <FanAvatar seed={me.avatarSeed} name={me.displayName} size={34} tier={me.tier} />
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>You are not ranked {WHEN[view.period]} yet</Text>
-          <Text style={styles.prompt}>Win a Call to join {formatNumber(view.ranked)} ranked fans.</Text>
+          <Text style={styles.prompt}>
+            {view.metric === 'tix' ? 'Your cards earn Tix when their teams win.' : 'Win a Call to join'} {view.metric === 'tix' ? `${formatNumber(view.ranked)} collectors are ranked.` : `${formatNumber(view.ranked)} ranked fans.`}
+          </Text>
         </View>
-        <Button label="Make a Call" small onPress={() => router.push('/calls')} />
+        {view.metric === 'tix'
+          ? <Button label="Get cards" small onPress={() => router.push('/pack')} />
+          : <Button label="Make a Call" small onPress={() => router.push('/calls')} />}
       </View>
     );
   }
@@ -50,7 +54,7 @@ export function YouBar({ view, isGuest, now, group }: { view: BoardView | undefi
           <Text style={styles.title}>You</Text>
           <TierBadge tier={me.tier} size="sm" />
           <MovementTag movement={me.movement} />
-          <Text style={styles.score}>+{formatNumber(me.score)}</Text>
+          <Text style={styles.score}>+{formatNumber(me.score)}{view.metric === 'tix' ? ' Tix' : ''}</Text>
         </View>
         {next && !group ? (
           <>
@@ -63,7 +67,7 @@ export function YouBar({ view, isGuest, now, group }: { view: BoardView | undefi
           </>
         ) : (
           <Text style={styles.prompt} numberOfLines={1}>
-            {group ? `${ordinalWord(me.rank)} of ${view.players} here` : `Top ${topShare(me.rank, view.ranked)} of fans ${WHEN[view.period]}`}
+            {group ? `${ordinalWord(me.rank)} of ${view.players} here` : `Top ${topShare(me.rank, view.ranked)} of ${view.metric === 'tix' ? 'collectors' : 'fans'} ${WHEN[view.period]}`}
           </Text>
         )}
       </View>

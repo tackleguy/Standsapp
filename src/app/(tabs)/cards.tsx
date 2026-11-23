@@ -18,7 +18,8 @@ import { competitorById } from '@/data/api';
 import { SEASON, setMembers } from '@/data/demo/cards';
 import type { CardRarity } from '@/data/types';
 import { useNow } from '@/hooks/useNow';
-import { currentTime, formatNumber, utcDayKey } from '@/lib/format';
+import { currentTime, DAY, formatNumber, utcDayKey } from '@/lib/format';
+import { earningsSummary } from '@/logic/earnings';
 import { tapMedium } from '@/lib/haptics';
 import {
   collectorScore, duplicatesToSell, groupCards, isChosen, isGameDay, isHolo, setProgress, SORT_LABELS,
@@ -28,7 +29,7 @@ import { MyPlayersView } from '@/components/cards/MyPlayers';
 import { SHELF_PACKS } from '@/logic/rules';
 import { toast } from '@/store/toast';
 import { useUserStore } from '@/store/user';
-import { colors, radius, space, type } from '@/theme/tokens';
+import { colors, fonts, radius, space, type } from '@/theme/tokens';
 
 type Filter = CardRarity | 'all' | 'plays' | 'performances' | 'favorites' | 'holo' | 'gameday' | 'dupes';
 const FILTERS: { value: Filter; label: string }[] = [
@@ -48,6 +49,7 @@ const FILTERS: { value: Filter; label: string }[] = [
 const nameOf = (id: string) => competitorById(id)?.name ?? '';
 
 export default function CardsScreen() {
+  const router = useRouter();
   const tix = useUserStore((s) => s.tix);
   const cards = useUserStore((s) => s.cards);
   const claimed = useUserStore((s) => s.claimedSets);
@@ -58,7 +60,14 @@ export default function CardsScreen() {
 
   return (
     <Screen>
-      <Header title="Stand Cards" large right={<Text style={styles.tix}>🎟 {formatNumber(tix)} Tix</Text>} />
+      <Header title="Stand Cards" large right={(
+        <Pressable onPress={() => router.push('/earnings')} accessibilityRole="button" accessibilityLabel={`${tix} Tix. Open card earnings`}
+          style={({ pressed }) => [styles.tixChip, pressed && { backgroundColor: colors.surfaceHigh }]}>
+          <Text style={styles.tix}>🎟 {formatNumber(tix)}</Text>
+          <Icon name="stats-chart" size={15} color={colors.accent} />
+          <Text style={styles.tixLink}>Earnings</Text>
+        </Pressable>
+      )} />
       <View style={styles.tabs}>
         <Segmented value={view} onChange={setView} options={[
           { value: 'mine', label: `My players · ${chosenCount}` },
@@ -79,6 +88,7 @@ function CollectionView() {
   const showcase = useUserStore((s) => s.showcase);
   const claimed = useUserStore((s) => s.claimedSets);
   const lastFreePack = useUserStore((s) => s.lastFreePack);
+  const ledger = useUserStore((s) => s.ledger);
   const quickSell = useUserStore((s) => s.quickSell);
   const [sport, setSport] = useState('all');
   const [filter, setFilter] = useState<Filter>('all');
@@ -153,6 +163,18 @@ function CollectionView() {
               <StatTile label="Unique" value={formatNumber(unique)} />
               <StatTile label="Score" value={formatNumber(collectorScore(cards, claimed.length), true)} accent />
             </View>
+
+            <Pressable onPress={() => router.push('/earnings')} accessibilityRole="button" accessibilityLabel="Open card earnings"
+              style={({ pressed }) => [styles.earn, pressed && { backgroundColor: colors.surfaceHigh }]}>
+              <Icon name="cash-outline" size={18} color={colors.accent} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.earnTitle}>Card earnings</Text>
+                <Text style={styles.earnSub}>Win bonuses, fantasy points and set rewards</Text>
+              </View>
+              <Text style={styles.earnValue}>+{formatNumber(earningsSummary(ledger, now - 7 * DAY, now).earned)}</Text>
+              <Text style={styles.earnUnit}>TIX · 7D</Text>
+              <Icon name="chevron-forward" size={18} color={colors.textDim} />
+            </Pressable>
 
             <View style={styles.tools}>
               <Button label={dupes.length ? `Sell ${dupes.length} dupes` : 'No dupes'} icon="pricetag" small variant="secondary"
@@ -249,6 +271,15 @@ function SetsView() {
 
 const styles = StyleSheet.create({
   tix: { ...type.label, color: colors.text, fontSize: 15 },
+  tixChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: space.md, minHeight: 40, borderRadius: radius.pill,
+    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
+  tixLink: { fontFamily: fonts.bold, fontSize: 14, color: colors.accent, letterSpacing: 0.4 },
+  earn: { marginHorizontal: space.lg, marginTop: space.md, flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingHorizontal: space.md,
+    minHeight: 56, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: 'rgba(255,182,39,0.35)' },
+  earnTitle: { fontSize: 15, fontWeight: '800', color: colors.text },
+  earnSub: { ...type.label, fontSize: 11, color: colors.textDim, letterSpacing: 0.2 },
+  earnValue: { fontFamily: fonts.heavy, fontSize: 20, color: colors.accent, fontVariant: ['tabular-nums'] },
+  earnUnit: { fontFamily: fonts.bold, fontSize: 10, color: colors.textDim, letterSpacing: 0.6, marginRight: 2 },
   tabs: { paddingHorizontal: space.lg, paddingBottom: space.sm },
   store: { marginHorizontal: space.lg, flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.md,
     borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
