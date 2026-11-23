@@ -19,6 +19,7 @@ import { sportHasDraws } from '@/logic/winProbability';
 import { colors, fonts, radius, space, type } from '@/theme/tokens';
 
 import { CompetitorBadge } from '../Badge';
+import { GamePackBanner } from '../cards/GamePackBanner';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { LiveDot } from '../ui/LiveDot';
@@ -332,6 +333,7 @@ export function PreviewTab({ state, onScroll, onMakeCalls }: { state: EventState
   return (
     <ScrollView onScroll={onScroll} scrollEventThrottle={32} contentContainerStyle={styles.body}>
       <Countdown state={state} now={now} />
+      <View style={{ marginHorizontal: space.lg }}><GamePackBanner state={state} now={now} /></View>
       {meta.format === 'race' ? <RacePreview state={state} now={tableNow} /> : (
         <>
           <TeamsPreview state={state} now={tableNow} onMakeCalls={onMakeCalls} />

@@ -62,7 +62,32 @@
   the welcome screen shows what is live right now.
 - **Honesty note**: other fans, chat and the crowd are simulated. Before inviting real people,
   either connect the database (so the people are real) or label the simulated ones again.
-- Checks: `npm run check` (linter + type checker + 85 tests) passes.
+
+## Stand Cards update (November 2026)
+
+- **Pack Store** with five pack types, each with published odds: Daily Free Pack (1 card, once a
+  day), Standard (3 cards, 25 Tix), Premium (5 cards, 75 Tix, last card Rare or better), Elite
+  (3 cards, 150 Tix, no Commons, last card Epic or better), and **Game Packs** (2 cards, 20 Tix).
+- **Game Packs** are sold per game, from 2 hours before the start until it ends, and only hold
+  cards of that game's teams or athletes. Game Day cards get a red stamp with the date and their
+  own print run, pay double Tix if their side wins that game, and get a WON stamp. A banner on
+  the game's Feed opens it.
+- **Holo parallels** (1 in 10 cards) with a foil shine, and **numbered print runs** (for example
+#003/25). Sold-out runs are never oversold.
+- **Quick sell** any card for Tix (Common 1, Rare 3, Epic 10, Legendary 40, Holo double), one at a
+  time or "sell all duplicates", including straight after opening a pack.
+- **Card page**: flip the card to see its back (home, league, form, next game, set number),
+  favorite it (protects it from selling), pin it to the 5-card **showcase** on Me, see every copy.
+- **Collection**: duplicates stack (x3), sort (newest, rarest, lowest serial, name, value),
+  filters (sport, rarity, favorites, Holo, Game Day, duplicates), Cards / Unique / Score tiles.
+- **Trade up**: 5 cards of one rarity become 1 card of the next rarity (same sport if all 5 are).
+- **Sets**: one per sport, shown as an album with empty slots. Collect every team or athlete to
+  claim 10 Tix per card in the set.
+- NEW / DUPLICATE tags and a glow for Epic and Legendary pulls when packs open.
+- Win bonuses only count games that finish after you got the card; team cards (an F1
+  constructor) also pay when one of their athletes wins.
+- Saved data moved to version 2 without losing any cards.
+- Checks: `npm run check` (linter + type checker + 108 tests) passes.
 
 ## What is next
 

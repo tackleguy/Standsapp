@@ -13,6 +13,7 @@ import { useUserStore } from '@/store/user';
 import { colors, fonts, space, type } from '@/theme/tokens';
 
 import { CallCard } from '../calls/CallCard';
+import { GamePackBanner } from '../cards/GamePackBanner';
 import { LiveDot } from '../ui/LiveDot';
 import { Segmented } from '../ui/Misc';
 import { EmptyState, ErrorState, Skeleton } from '../ui/StateViews';
@@ -44,6 +45,7 @@ export function FeedTab({ state, onScroll }: { state: EventState; onScroll: Scro
             <Text style={styles.liveSub}>Updates automatically</Text>
           </View>
         ) : null}
+        <GamePackBanner state={state} now={now} />
         <Segmented value={filter} onChange={setFilter}
           options={[{ value: 'all', label: `All plays · ${state.plays.length}` }, { value: 'key', label: `Key moments · ${keyCount}` }]} />
       </View>
@@ -53,6 +55,7 @@ export function FeedTab({ state, onScroll }: { state: EventState; onScroll: Scro
   if (state.status === 'scheduled') {
     return (
       <ScrollView onScroll={onScroll} scrollEventThrottle={32}>
+        <View style={styles.feedHead}><GamePackBanner state={state} now={now} /></View>
         <EmptyState icon="time" title={`Starts ${timeUntil(state.meta.startsAt, now)}`}
           body={`${formatDay(state.meta.startsAt)} at ${formatTime(state.meta.startsAt)} · ${state.meta.venue}. The play-by-play begins at the start.`} />
       </ScrollView>

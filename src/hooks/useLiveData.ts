@@ -3,7 +3,7 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 
 import {
-  getCompetitor, getDayEvents, getEvent, getEventCalls, getOpenCalls, search,
+  getCompetitor, getDayEvents, getEvent, getEventCalls, getGamePackEvents, getOpenCalls, search,
 } from '@/data/api';
 import { currentTime, DAY } from '@/lib/format';
 
@@ -60,6 +60,15 @@ export function useSearch(query: string) {
   return useQuery({
     queryKey: ['search', query.trim().toLowerCase()],
     queryFn: () => asPromise(() => search(query)),
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useGamePacks() {
+  return useQuery({
+    queryKey: ['game-packs'],
+    queryFn: () => asPromise(() => getGamePackEvents(currentTime())),
+    refetchInterval: 15_000,
     placeholderData: keepPreviousData,
   });
 }

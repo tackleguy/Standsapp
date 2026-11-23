@@ -1,6 +1,9 @@
 import { Tabs } from 'expo-router/js-tabs';
 
 import { Icon, type IconName } from '@/components/ui/Icon';
+import { useNow } from '@/hooks/useNow';
+import { utcDayKey } from '@/lib/format';
+import { useUserStore } from '@/store/user';
 import { colors } from '@/theme/tokens';
 
 const tab = (title: string, icon: IconName, iconOn: IconName) => ({
@@ -12,6 +15,9 @@ const tab = (title: string, icon: IconName, iconOn: IconName) => ({
 });
 
 export default function TabsLayout() {
+  // A dot on Cards when today's free pack is waiting (only for signed-up fans).
+  const now = useNow(60_000);
+  const freeReady = useUserStore((s) => !s.profile.isGuest && s.lastFreePack !== utcDayKey(now));
   return (
     <Tabs
       screenOptions={{
@@ -25,7 +31,11 @@ export default function TabsLayout() {
     >
       <Tabs.Screen name="index" options={tab('Today', 'pulse-outline', 'pulse')} />
       <Tabs.Screen name="calls" options={tab('Calls', 'flash-outline', 'flash')} />
-      <Tabs.Screen name="cards" options={tab('Cards', 'albums-outline', 'albums')} />
+      <Tabs.Screen name="cards" options={{
+        ...tab('Cards', 'albums-outline', 'albums'),
+        tabBarBadge: freeReady ? '' : undefined,
+        tabBarBadgeStyle: { backgroundColor: colors.win, minWidth: 10, maxHeight: 10, borderRadius: 5, marginTop: 4 },
+      }} />
       <Tabs.Screen name="sections" options={tab('Sections', 'people-outline', 'people')} />
       <Tabs.Screen name="me" options={tab('Me', 'person-circle-outline', 'person-circle')} />
     </Tabs>
