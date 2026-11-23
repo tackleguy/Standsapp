@@ -83,7 +83,7 @@ describe('Calls on this device follow the server rules', () => {
     expect(useUserStore.getState().placePrediction({ call, option: call.options[0], options: call.options, stake: 10,
       eventTitle: meta.title, sportId: meta.sportId, now: before })).toMatch(/account/);
     expect(useUserStore.getState().postMessage('event:x', 'hello', Date.now())).toMatch(/account/);
-    expect(useUserStore.getState().openPack(null, Date.now())).toHaveProperty('error');
+    expect(useUserStore.getState().openPack({ packId: 'standard' }, Date.now())).toHaveProperty('error');
   });
 
   it('exposes no way to set Clout or Tix directly', () => {
@@ -96,12 +96,12 @@ describe('packs and chat', () => {
   beforeEach(signUp);
 
   it('opens a pack of 3 for 25 Tix with increasing serials', () => {
-    const r = useUserStore.getState().openPack('f1', Date.now());
-    expect(Array.isArray(r)).toBe(true);
+    const r = useUserStore.getState().openPack({ packId: 'standard', sportId: 'f1' }, Date.now());
+    expect(r).toHaveProperty('cards');
     expect(useUserStore.getState().tix).toBe(25);
     expect(useUserStore.getState().cards).toHaveLength(3);
-    useUserStore.getState().openPack('f1', Date.now());
-    expect(useUserStore.getState().openPack('f1', Date.now())).toEqual({ error: 'Not enough Tix.' });
+    useUserStore.getState().openPack({ packId: 'standard', sportId: 'f1' }, Date.now());
+    expect(useUserStore.getState().openPack({ packId: 'standard', sportId: 'f1' }, Date.now())).toEqual({ error: 'Not enough Tix.' });
   });
 
   it('filters bad words and throttles fast posting', () => {
@@ -121,7 +121,7 @@ describe('packs and chat', () => {
   });
 
   it('deletes the account completely', () => {
-    useUserStore.getState().openPack(null, Date.now());
+    useUserStore.getState().openPack({ packId: 'standard' }, Date.now());
     useUserStore.getState().deleteAccount();
     const s = useUserStore.getState();
     expect(s.profile.isGuest).toBe(true);

@@ -17,6 +17,7 @@ export default function Rules() {
       { heading: 'Free points only', body: [
         'Clout and Tix are free play points. They have no cash value and can never be bought, sold, traded for money, or cashed out.',
         'Calls are predictions for fun. Stands has no real-money gambling of any kind.',
+        'Stand Cards have no cash value. Quick sell turns a card back into a few Tix inside Stands, never into money, and every pack shows its odds before you open it.',
       ] },
       { heading: 'Tools you have', body: [
         'Report: press and hold any message (or tap •••) and choose Report. We hide it for you right away.',
