@@ -64,12 +64,12 @@ export function callsForEvent(meta: EventMeta): Call[] {
   const id = (kind: string) => `${meta.id}:${kind}`;
   const calls: Call[] = [];
 
-  if (engine === 'h2h' || engine === 'baseball' || engine === 'cricket' || engine === 'tennis' || engine === 'combat') {
+  if (engine === 'h2h' || engine === 'football' || engine === 'baseball' || engine === 'cricket' || engine === 'tennis' || engine === 'combat') {
     const chances = sideChances(meta);
     calls.push({ id: id('winner'), eventId: meta.id, kind: 'winner', question: 'Who wins?', ...pre,
       options: sideOptions(meta, id('winner'), chances) });
   }
-  if (engine === 'h2h' || engine === 'baseball') {
+  if (engine === 'h2h' || engine === 'football' || engine === 'baseball') {
     const expected = Number(simulate(meta, meta.startsAt - 1).facts.expectedTotal ?? 0);
     const line = Math.floor(expected) + 0.5;
     const word = H2H_CONFIGS[meta.sportId]?.totalWord ?? 'runs';

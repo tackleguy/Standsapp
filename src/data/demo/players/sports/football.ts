@@ -36,7 +36,7 @@ export const football: SportStatsDef = {
     rec: 0.5, recYds: 0.1, recTd: 6,
     fumLost: -2, twoPt: 2,
     fg3: 3, fg4: 4, fg5: 5, fgMiss: -1, pat: 1, patMiss: -1,
-    puntYds: 0.04, puntIn20: 1,
+    puntYds: 0.03, puntIn20: 1,
     tkl: 1, sacks: 2, ints: 3, pd: 1, ff: 2, defTd: 6,
   },
   headline: (l, pos) => {

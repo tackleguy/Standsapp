@@ -6,6 +6,7 @@ import { baseballGameStats, simulateBaseball } from './baseball';
 import { combatGameStats, simulateCombat } from './combat';
 import { cachedScript, emptyGameStats } from './common';
 import { cricketGameStats, simulateCricket } from './cricket';
+import { footballClock, footballGameStats, simulateFootball } from './football';
 import { cyclingGameStats, simulateCycling } from './cycling';
 import { golfGameStats, simulateGolf } from './golf';
 import { h2hClock, h2hGameStats, simulateH2H } from './h2h';
@@ -14,6 +15,7 @@ import { simulateTennis, tennisGameStats } from './tennis';
 
 export function simulate(meta: EventMeta, now: number): EventState {
   switch (planFor(meta.sportId)?.engine) {
+    case 'football': return simulateFootball(meta, now);
     case 'cricket': return simulateCricket(meta, now);
     case 'race': return simulateRace(meta, now);
     case 'golf': return simulateGolf(meta, now);
@@ -38,6 +40,7 @@ export function finalState(meta: EventMeta): EventState {
 export function liveClock(meta: EventMeta, now: number): string | null {
   const engine = planFor(meta.sportId)?.engine;
   if (engine === 'h2h') return h2hClock(meta, now);
+  if (engine === 'football') return footballClock(meta, now);
   if (engine === 'combat') {
     const s = simulateCombat(meta, now);
     return s.status === 'live' ? s.periodLabel : null;
@@ -54,6 +57,7 @@ export function gameStatsFor(meta: EventMeta): GameStats {
   if (meta.disruption) return emptyGameStats(meta);
   return cachedScript(`stats:${meta.id}`, () => {
     switch (planFor(meta.sportId)?.engine) {
+      case 'football': return footballGameStats(meta);
       case 'cricket': return cricketGameStats(meta);
       case 'race': return raceGameStats(meta);
       case 'golf': return golfGameStats(meta);

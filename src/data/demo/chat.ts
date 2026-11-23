@@ -554,7 +554,7 @@ function valuesFor(ctx: Ctx, fan: Fan, supports: string | null, t: number, rng: 
 function buildCtx(final: EventState): Ctx {
   const meta = final.meta;
   const engine = planFor(meta.sportId)?.engine;
-  const isTeamGame = (engine === 'h2h' || engine === 'baseball') && meta.competitorIds.length === 2;
+  const isTeamGame = (engine === 'h2h' || engine === 'football' || engine === 'baseball') && meta.competitorIds.length === 2;
   const scores: ScoreAt[] = [];
   const breaks: Ctx['breaks'] = [];
   for (const p of final.plays) {

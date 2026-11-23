@@ -1,7 +1,7 @@
 // How the demo world schedules each sport. Times are in UTC hours.
 // Wave 1 sports run on a rolling timetable so something is always live.
 
-export type EngineId = 'h2h' | 'cricket' | 'race' | 'golf' | 'cycling' | 'tennis' | 'combat' | 'baseball';
+export type EngineId = 'h2h' | 'football' | 'cricket' | 'race' | 'golf' | 'cycling' | 'tennis' | 'combat' | 'baseball';
 
 export type Roster =
   | { kind: 'teams'; count: number }
@@ -43,7 +43,7 @@ export const PLANS: SportPlan[] = [
   { sportId: 'rugby_league', engine: 'h2h', roster: { kind: 'teams', count: 12 },
     competitions: [{ name: 'Super XIII League', short: 'S13' }],
     durationMin: 100, slots: { kind: 'daily', hours: [7, 9.5, 11, 18, 20.5] } },
-  { sportId: 'american_football', engine: 'h2h', roster: { kind: 'teams', count: 16 },
+  { sportId: 'american_football', engine: 'football', roster: { kind: 'teams', count: 16 },
     competitions: [{ name: 'National Gridiron League', short: 'NGL' }],
     durationMin: 200, slots: { kind: 'daily', hours: [0.5, 17, 20.5, 23.5] } },
   { sportId: 'baseball', engine: 'baseball', roster: { kind: 'teams', count: 14 },
