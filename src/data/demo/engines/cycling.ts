@@ -3,10 +3,11 @@ import { MINUTE } from '@/lib/format';
 import { createRng } from '@/lib/random';
 
 import type { EntryState, EventMeta, EventState, StatsSection } from '../../types';
+import type { GameStats } from '../players/types';
 import { competitorById } from '../world';
 import {
   cachedScript, disruptedState, mmss, nameOf, playsUpTo, preMatchNote, progressAt, sortTimeline, statusAt,
-  strengthOf, type TimedPlay,
+  strengthOf, type TimedPlay, emptyGameStats,
 } from './common';
 
 type Profile = 'flat' | 'hilly' | 'mountain';
@@ -180,4 +181,12 @@ export function simulateCycling(meta: EventMeta, now: number): EventState {
     },
     endsAt: s.endsAt,
   };
+}
+
+/**
+ * Per-player stats for one event (the whole game; readers cut it at "now").
+ * TODO(players): attribute every stat to roster players. Until then nobody scores.
+ */
+export function cyclingGameStats(meta: EventMeta): GameStats {
+  return emptyGameStats(meta);
 }

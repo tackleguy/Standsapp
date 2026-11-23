@@ -3,10 +3,11 @@ import { formatOvers, MINUTE } from '@/lib/format';
 import { createRng, type Rng } from '@/lib/random';
 
 import type { EntryState, EventMeta, EventState, StatsSection } from '../../types';
+import type { GameStats } from '../players/types';
 import { squadFor } from '../world';
 import {
   cachedScript, disruptedState, nameOf, playsUpTo, preMatchNote, progressAt, shortOf, sortTimeline,
-  statusAt, strengthOf, type TimedPlay,
+  statusAt, strengthOf, type TimedPlay, emptyGameStats,
 } from './common';
 
 const BALL_MS = 40_000;
@@ -330,4 +331,12 @@ function countAt(script: CricketScript, now: number, side: number, runs: number)
     .filter((inn) => inn.battingSide === side)
     .flatMap((inn) => inn.balls)
     .filter((b) => b.at <= now && b.runs === runs).length;
+}
+
+/**
+ * Per-player stats for one event (the whole game; readers cut it at "now").
+ * TODO(players): attribute every stat to roster players. Until then nobody scores.
+ */
+export function cricketGameStats(meta: EventMeta): GameStats {
+  return emptyGameStats(meta);
 }

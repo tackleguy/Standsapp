@@ -72,6 +72,40 @@ export interface Play {
   tag: string | null;
   /** Score line right after this play, e.g. "2-1". */
   scoreAfter: string | null;
+  /** Players in the play, main player first (ids from the player rosters). */
+  playerIds?: string[];
+  /** Each player's part in the play, same order as playerIds ("rush", "rec", "pass", "def", "bowl"...). */
+  playerRoles?: string[];
+  /** Short title for a play card: "13-yd catch", "Goal", "3-pointer", "Ace". */
+  headline?: string;
+  /** How big the play was, 0.0-9.9 (shown as the play's rating). */
+  impact?: number;
+  /** Index of the period it happened in (matches GameStats.periods). */
+  period?: number;
+  /** Football only: the situation before the snap and what happened. */
+  football?: FootballSnap;
+}
+
+/** The down-and-distance details of one football play. */
+export interface FootballSnap {
+  /** Team with the ball. */
+  offenseId: string;
+  down: number; // 1-4, 0 for kicks
+  distance: number;
+  /** Ball spot as the offense's distance from its own goal line (0-100). */
+  yardLine: number;
+  /** Offensive personnel grouping, e.g. "11" = 1 RB, 1 TE, 3 WR. */
+  personnel: string | null;
+  kind: 'run' | 'pass' | 'sack' | 'kneel' | 'punt' | 'fg' | 'pat' | 'two' | 'kickoff' | 'penalty';
+  yards: number;
+  firstDown: boolean;
+  touchdown: boolean;
+  /** Yards after the catch, on completions. */
+  yac: number | null;
+  /** Gained enough to count as a successful play (40% of the distance on 1st down, 60% on 2nd, all of it on 3rd/4th). */
+  success: boolean;
+  /** Clock left in the period at the snap, in seconds. */
+  clockSec: number;
 }
 
 export type StatsSection =

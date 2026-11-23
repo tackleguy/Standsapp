@@ -1,5 +1,7 @@
 // Shared helpers for every demo simulator.
 import type { EntryState, EventMeta, EventState, EventStatus, Importance, Play, StatsSection } from '../../types';
+import { playersForSide } from '../players/roster';
+import type { GameStats } from '../players/types';
 import { competitorById } from '../world';
 
 /** A play on the full script timeline, before we cut it at "now". */
@@ -11,6 +13,12 @@ export interface TimedPlay {
   importance: Importance;
   tag: string | null;
   scoreAfter: string | null;
+  playerIds?: string[];
+  playerRoles?: string[];
+  headline?: string;
+  impact?: number;
+  period?: number;
+  football?: Play['football'];
 }
 
 const scriptCache = new Map<string, unknown>();
@@ -57,9 +65,32 @@ export function playsUpTo(meta: EventMeta, timeline: TimedPlay[], now: number): 
       importance: p.importance,
       tag: p.tag,
       scoreAfter: p.scoreAfter,
+      ...(p.playerIds ? { playerIds: p.playerIds } : null),
+      ...(p.playerRoles ? { playerRoles: p.playerRoles } : null),
+      ...(p.headline ? { headline: p.headline } : null),
+      ...(p.impact !== undefined ? { impact: p.impact } : null),
+      ...(p.period !== undefined ? { period: p.period } : null),
+      ...(p.football ? { football: p.football } : null),
     });
   });
   return out;
+}
+
+/**
+ * Placeholder stats for a sport whose simulator does not track players yet:
+ * everyone on the roster is listed, nobody has done anything.
+ */
+export function emptyGameStats(meta: EventMeta, periods: string[] = []): GameStats {
+  return {
+    periods,
+    lineups: meta.competitorIds.map((id) => ({ competitorId: id, playerIds: playersForSide(id).map((p) => p.id) })),
+    events: [],
+  };
+}
+
+/** Clamp and round a play rating to one decimal place, 0.0-9.9. */
+export function impactOf(value: number): number {
+  return Math.round(Math.min(9.9, Math.max(0, value)) * 10) / 10;
 }
 
 export function sortTimeline(timeline: TimedPlay[]): TimedPlay[] {

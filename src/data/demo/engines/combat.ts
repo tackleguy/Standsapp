@@ -3,9 +3,10 @@ import { MINUTE } from '@/lib/format';
 import { createRng } from '@/lib/random';
 
 import type { EntryState, EventMeta, EventState, StatsSection } from '../../types';
+import type { GameStats } from '../players/types';
 import {
   cachedScript, disruptedState, mmss, nameOf, playsUpTo, preMatchNote, progressAt, shortOf, sortTimeline,
-  statusAt, strengthOf, type TimedPlay,
+  statusAt, strengthOf, type TimedPlay, emptyGameStats,
 } from './common';
 
 export type Method = 'KO/TKO' | 'Submission' | 'Decision';
@@ -163,4 +164,12 @@ export function simulateCombat(meta: EventMeta, now: number): EventState {
     facts: { winner: s.winner === 0 ? 'home' : 'away', method: s.method, distance: s.method === 'Decision' },
     endsAt: s.endsAt,
   };
+}
+
+/**
+ * Per-player stats for one event (the whole game; readers cut it at "now").
+ * TODO(players): attribute every stat to roster players. Until then nobody scores.
+ */
+export function combatGameStats(meta: EventMeta): GameStats {
+  return emptyGameStats(meta);
 }

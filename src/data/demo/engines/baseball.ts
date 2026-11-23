@@ -3,10 +3,11 @@ import { MINUTE, ordinal } from '@/lib/format';
 import { createRng } from '@/lib/random';
 
 import type { EntryState, EventMeta, EventState, StatsSection } from '../../types';
+import type { GameStats } from '../players/types';
 import { squadFor } from '../world';
 import {
   cachedScript, disruptedState, nameOf, playsUpTo, preMatchNote, progressAt, shortOf, sortTimeline, statusAt,
-  strengthOf, type TimedPlay,
+  strengthOf, type TimedPlay, emptyGameStats,
 } from './common';
 
 const HALF_MS = 9.5 * MINUTE;
@@ -169,4 +170,12 @@ export function simulateBaseball(meta: EventMeta, now: number): EventState {
     facts: { homeScore: final[0], awayScore: final[1], total: final[0] + final[1], winner: winner === 0 ? 'home' : 'away', expectedTotal: 9 },
     endsAt: s.endsAt,
   };
+}
+
+/**
+ * Per-player stats for one event (the whole game; readers cut it at "now").
+ * TODO(players): attribute every stat to roster players. Until then nobody scores.
+ */
+export function baseballGameStats(meta: EventMeta): GameStats {
+  return emptyGameStats(meta);
 }

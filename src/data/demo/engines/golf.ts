@@ -3,9 +3,10 @@ import { formatTime, formatToPar, MINUTE } from '@/lib/format';
 import { createRng } from '@/lib/random';
 
 import type { EntryState, EventMeta, EventState, StatsSection } from '../../types';
+import type { GameStats } from '../players/types';
 import {
   cachedScript, disruptedState, nameOf, playsUpTo, preMatchNote, progressAt, sortTimeline, statusAt,
-  strengthOf, type TimedPlay,
+  strengthOf, type TimedPlay, emptyGameStats,
 } from './common';
 
 const PARS = [4, 4, 3, 5, 4, 4, 3, 4, 5, 4, 3, 4, 5, 4, 4, 3, 4, 5];
@@ -152,4 +153,12 @@ export function simulateGolf(meta: EventMeta, now: number): EventState {
     facts: { winnerId: finalRows[0].id, top6: finalRows.slice(0, 6).map((r) => r.id).join(','), podium: finalRows.slice(0, 3).map((r) => r.id).join(',') },
     endsAt: s.endsAt,
   };
+}
+
+/**
+ * Per-player stats for one event (the whole game; readers cut it at "now").
+ * TODO(players): attribute every stat to roster players. Until then nobody scores.
+ */
+export function golfGameStats(meta: EventMeta): GameStats {
+  return emptyGameStats(meta);
 }

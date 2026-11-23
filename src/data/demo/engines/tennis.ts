@@ -3,9 +3,10 @@ import { MINUTE } from '@/lib/format';
 import { createRng } from '@/lib/random';
 
 import type { EntryState, EventMeta, EventState, StatsSection } from '../../types';
+import type { GameStats } from '../players/types';
 import {
   cachedScript, disruptedState, nameOf, playsUpTo, preMatchNote, progressAt, shortOf, sortTimeline, statusAt,
-  strengthOf, type TimedPlay,
+  strengthOf, type TimedPlay, emptyGameStats,
 } from './common';
 
 interface Game { at: number; set: number; winner: 0 | 1; server: 0 | 1; tiebreak: string | null }
@@ -172,4 +173,12 @@ export function simulateTennis(meta: EventMeta, now: number): EventState {
     facts: { winner: winner === 0 ? 'home' : 'away', sets: final.sets.length, totalGames: s.games.length },
     endsAt: s.endsAt,
   };
+}
+
+/**
+ * Per-player stats for one event (the whole game; readers cut it at "now").
+ * TODO(players): attribute every stat to roster players. Until then nobody scores.
+ */
+export function tennisGameStats(meta: EventMeta): GameStats {
+  return emptyGameStats(meta);
 }

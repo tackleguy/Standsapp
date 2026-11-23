@@ -3,10 +3,11 @@ import { formatGap, formatLapTime, MINUTE } from '@/lib/format';
 import { createRng } from '@/lib/random';
 
 import type { EntryState, EventMeta, EventState, StatsSection } from '../../types';
+import type { GameStats } from '../players/types';
 import { competitorById } from '../world';
 import {
   cachedScript, disruptedState, nameOf, playsUpTo, preMatchNote, progressAt, sortTimeline, statusAt,
-  strengthOf, type TimedPlay,
+  strengthOf, type TimedPlay, emptyGameStats,
 } from './common';
 
 interface RaceSpec { laps: number; sprintLaps: number; baseLap: number; points: number[]; sprintPoints: number[]; pitLoss: number; word: string }
@@ -360,4 +361,12 @@ export function raceOrderNow(meta: EventMeta, now: number): string[] {
   const s = cachedScript(`race:${meta.id}`, () => buildScript(meta));
   const lap = completedLapsAt(s, now);
   return orderAt(s, lap).map((d) => s.ids[d]);
+}
+
+/**
+ * Per-player stats for one event (the whole game; readers cut it at "now").
+ * TODO(players): attribute every stat to roster players. Until then nobody scores.
+ */
+export function raceGameStats(meta: EventMeta): GameStats {
+  return emptyGameStats(meta);
 }

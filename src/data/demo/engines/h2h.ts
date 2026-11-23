@@ -5,10 +5,11 @@ import { MINUTE } from '@/lib/format';
 import { createRng } from '@/lib/random';
 
 import type { EntryState, EventMeta, EventState, StatsSection } from '../../types';
+import type { GameStats } from '../players/types';
 import { squadFor, venueFor, competitorById } from '../world';
 import {
   cachedScript, disruptedState, fill, mmss, nameOf, playsUpTo, preMatchNote, progressAt, shortOf,
-  sortTimeline, statusAt, strengthOf, type TimedPlay,
+  sortTimeline, statusAt, strengthOf, type TimedPlay, emptyGameStats,
 } from './common';
 import { H2H_CONFIGS, type H2HConfig, type PeriodDef } from './h2hSports';
 
@@ -403,4 +404,12 @@ export function simulateH2H(meta: EventMeta, now: number): EventState {
     },
     endsAt: script.endsAt,
   };
+}
+
+/**
+ * Per-player stats for one event (the whole game; readers cut it at "now").
+ * TODO(players): attribute every stat to roster players. Until then nobody scores.
+ */
+export function h2hGameStats(meta: EventMeta): GameStats {
+  return emptyGameStats(meta);
 }
