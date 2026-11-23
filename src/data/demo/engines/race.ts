@@ -158,35 +158,42 @@ function buildScript(meta: EventMeta): RaceScript {
         playerIds: who(order[0], prev[0]), playerRoles: ['lead', 'passed'], headline: 'Takes the lead',
         impact: impactOf(6 + (2.5 * lap) / laps), period });
     }
+    const posNow = new Array<number>(ids.length);
+    order.forEach((d, i) => { posNow[d] = i; });
+    const inPits = (d: number) => pits.has(`${d}:${lap}`);
+    // The cars `d` passed on track this lap, best placed first: ahead of it a lap
+    // ago and behind it now, with neither car in the pits and both still running.
+    // A place won because a car ahead pitted or retired is not a pass.
+    const passedBy = (d: number) => (running(d, lap) && !inPits(d)
+      ? prev.slice(0, prev.indexOf(d)).filter((b) => posNow[b] > posNow[d] && running(b, lap) && !inPits(b))
+      : []);
     let overtakes = 0;
-    const calledPass = new Set<number>();
     for (let p = 1; p < Math.min(8, order.length) && overtakes < 2; p++) {
       const d = order[p];
       const was = prev.indexOf(d);
-      if (was > p && !pits.has(`${prev[p]}:${lap}`) && cum[d][lap] !== Infinity) {
+      if (was > p && !inPits(prev[p]) && cum[d][lap] !== Infinity) {
+        // Name a car `d` really passed: the one that held this place if it did,
+        // else the best placed. With no pass on track, name the car ahead that
+        // pitted or retired and gave up the place, and say so.
+        const passed = passedBy(d);
+        const droppedBack = passed.length ? passed : prev.slice(0, was).filter((b) => posNow[b] > p);
+        const x = droppedBack.includes(prev[p]) ? prev[p] : droppedBack[0];
+        const place = `P${p + 1}`;
+        const description = passed.length ? `${name(d)} passes ${name(x)} for ${place}.`
+          : !running(x, lap) ? `${name(d)} moves up to ${place} as ${name(x)} retires.`
+            : inPits(d) ? `${name(d)} jumps ${name(x)} in the pits for ${place}.`
+              : `${name(d)} moves up to ${place} as ${name(x)} pits.`;
         tl.push({ at: at - 5000, clock, importance: p <= 3 ? 2 : 1, tag: 'OVERTAKE', competitorId: ids[d],
-          description: `${name(d)} passes ${name(prev[p])} for P${p + 1}.`, scoreAfter: null,
-          playerIds: who(d, prev[p]), playerRoles: ['ot', 'passed'], headline: `Overtake for P${p + 1}`,
+          description, scoreAfter: null,
+          playerIds: who(d, x), playerRoles: ['ot', 'passed'], headline: passed.length ? `Overtake for ${place}` : `Up to ${place}`,
           impact: impactOf(5.6 - p * 0.45), period });
-        calledPass.add(d);
         overtakes++;
       }
     }
-    // Overtakes for the whole field: every running car that ended the lap ahead of
-    // a car it was behind, when that car neither pitted nor retired this lap. A pass
-    // the commentary called always counts, so the feed and the stats agree.
-    const posNow = new Array<number>(ids.length);
-    order.forEach((d, i) => { posNow[d] = i; });
+    // Overtakes for the whole field: every pass on track, the same ones the feed
+    // calls, so the feed and the stats agree.
     for (const d of order) {
-      let passed = 0;
-      if (running(d, lap) && !pits.has(`${d}:${lap}`)) {
-        const wasAt = prev.indexOf(d);
-        for (let q = 0; q < wasAt; q++) {
-          const b = prev[q];
-          if (posNow[b] > posNow[d] && running(b, lap) && !pits.has(`${b}:${lap}`)) passed++;
-        }
-      }
-      const ot = Math.max(passed, calledPass.has(d) ? 1 : 0);
+      const ot = passedBy(d).length;
       if (ot > 0) credit(at - 5000, lap, d, { ot });
     }
     for (let d = 0; d < ids.length; d++) {

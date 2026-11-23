@@ -4,11 +4,13 @@
 // have changed a single result, time, play or Call.
 import { callsForEvent, resolveCall } from '@/data/demo/calls';
 import { finalState, gameStatsFor, simulate } from '@/data/demo/engines';
+import { nameOf } from '@/data/demo/engines/common';
 import { raceSnapshot } from '@/data/demo/engines/race';
+import { momentById } from '@/data/demo/moments';
 import { linesUpTo, pointsOf } from '@/data/demo/players/lines';
 import type { GameStats, StatEvent, StatLine } from '@/data/demo/players/types';
 import { eventMetaById, eventsForUtcDay } from '@/data/demo/schedule';
-import type { EventMeta, EventState, Play } from '@/data/types';
+import type { EntryState, EventMeta, EventState, Play } from '@/data/types';
 import { formatToPar } from '@/lib/format';
 import { hashText } from '@/lib/random';
 
@@ -30,13 +32,20 @@ const table = (state: EventState, title: string) => {
   return t;
 };
 
-/** Everything a viewer or a Call can see of an event, at several moments. */
+/**
+ * Everything a viewer or a Call can see of an event, at several moments. Overtake
+ * plays keep their place, time, mover and rating, but not their wording or the
+ * car they name as passed: those were corrected to name the car really passed (or
+ * the pit stop or retirement that gave the place), and are checked further down.
+ */
 function fingerprint(meta: EventMeta): string {
   const moments = [-0.05, 0.1, 0.3, 0.5, 0.7, 0.9, 1.2].map((f) => meta.startsAt + Math.round(meta.durationMs * f));
+  const pass = (p: Play) => p.tag === 'OVERTAKE';
   const states = [...moments.map((t) => simulate(meta, t)), finalState(meta)].map((s) => ({
     status: s.status, periodLabel: s.periodLabel, progress: s.progress, entries: s.entries, stats: s.stats,
     resultText: s.resultText, facts: s.facts, endsAt: s.endsAt,
-    plays: s.plays.map((p) => [p.id, p.seq, p.at, p.clock, p.description, p.competitorId, p.importance, p.tag, p.scoreAfter]),
+    plays: s.plays.map((p) => [p.id, p.seq, p.at, p.clock, pass(p) ? null : p.description, p.competitorId, p.importance, p.tag, p.scoreAfter,
+      pass(p) ? p.playerIds?.slice(0, 1) : p.playerIds, p.playerRoles, pass(p) ? null : p.headline, p.impact, p.period]),
   }));
   const final = finalState(meta);
   const calls = callsForEvent(meta).map((c) => [c.id, c.options.map((o) => `${o.id}@${o.multiplier}`).join(','), resolveCall(c, final)]);
@@ -46,16 +55,18 @@ function fingerprint(meta: EventMeta): string {
 
 // Recorded at commit 9014e54, before any athlete stats existed: entries, running
 // orders, stats tables, plays, results, Call prices and outcomes, and the track map.
+// Re-recorded at commit efc946a, which still matched those first hashes, when the
+// fingerprint added each play's athletes, roles, headline and rating and left out
+// the overtake wording and the car it names (corrected after that commit).
 const BEFORE: Record<string, string> = {
-  'f1-2026-11-21-00': '8spktc', 'f1-2026-11-21-01': '63gb0d', 'f1-2026-11-21-02': '1b0a425', 'f1-2026-11-21-03': '11alyan',
-  'f1-2026-11-21-04': 'q6nzgv', 'f1-2026-11-21-05': 'njxq19', 'f1-2026-11-21-06': 'mxuqw', 'f1-2026-11-21-07': 'kxw97',
-  'f1-2026-11-21-08': '1glg5pk', 'f1-2026-11-21-09': '7y6flt', 'f1-2026-11-22-00': '19kbr8n', 'f1-2026-11-22-01': '1walhg1',
-  'f1-2026-11-22-02': 'ddswsg', 'f1-2026-11-22-03': '1a8brcj', 'f1-2026-11-22-04': 'vcfvrd', 'f1-2026-11-22-05': '176v39u',
-  'f1-2026-11-22-06': 'jyqpc0', 'f1-2026-11-22-07': 'hyh7dk', 'f1-2026-11-22-08': 'hrxvq2',
-  'motogp-2026-11-21-00': '12vqtvq', 'motogp-2026-11-21-01': '1jqk6r4', 'motogp-2026-11-22-00': '7f1i13', 'motogp-2026-11-22-01': '3r79q5',
-  'indycar-2026-11-21-00': '1lpkqp3', 'indycar-2026-11-21-01': '13lmeol', 'indycar-2026-11-22-00': '1rha0uh', 'indycar-2026-11-22-01': '1rxkk6o',
-  'cycling-2026-11-21-00': '11s3ua', 'cycling-2026-11-22-00': '1d8e8m0',
-  'golf-2026-11-21-00': '1j42ow3', 'golf-2026-11-22-00': '5fq8cj',
+  'f1-2026-11-21-00': '18j8wgb', 'f1-2026-11-21-01': 'uii29a', 'f1-2026-11-21-02': 'u3kcvy', 'f1-2026-11-21-03': '1wb6bm4',
+  'f1-2026-11-21-04': '1lyu14l', 'f1-2026-11-21-05': '1dbu263', 'f1-2026-11-21-06': '1xblozj', 'f1-2026-11-21-07': '15dmdsz',
+  'f1-2026-11-21-08': 'ny9k94', 'f1-2026-11-21-09': 'w8m2zy', 'f1-2026-11-22-00': '3a7jrh', 'f1-2026-11-22-01': '1rz3mb3',
+  'f1-2026-11-22-02': 'jpzqq6', 'f1-2026-11-22-03': '1rw4p2y', 'f1-2026-11-22-04': '1e6d6ib', 'f1-2026-11-22-05': '16lwa3r',
+  'f1-2026-11-22-06': 'l35i40', 'f1-2026-11-22-07': '5vxlg9', 'f1-2026-11-22-08': 'e5jwtq',
+  'motogp-2026-11-21-00': 'lgndlw', 'motogp-2026-11-21-01': '8cx48q', 'motogp-2026-11-22-00': '3ff841', 'motogp-2026-11-22-01': '1wcwrzo',
+  'indycar-2026-11-21-00': 'fxeky1', 'indycar-2026-11-21-01': 'mcn1f', 'indycar-2026-11-22-00': '1k4hrwh', 'indycar-2026-11-22-01': 'mkugpo',
+  'cycling-2026-11-21-00': '52r98o', 'cycling-2026-11-22-00': '10uosm2', 'golf-2026-11-21-00': '1j6zfss', 'golf-2026-11-22-00': '1h2t1rt',
 };
 
 describe('athlete stats leave the events untouched', () => {
@@ -161,38 +172,101 @@ describe('motor racing', () => {
     }
   });
 
-  it('credits an overtake for every pass in the running order and every pass the feed calls', () => {
+  /** The running order the app shows at the end of every lap (index 0: the grid). */
+  const lapOrders = (meta: EventMeta) => {
+    const gs = gameStatsFor(meta);
+    const lapEnds = [gs.events[0].at, ...gs.events.filter((e) => e.stats.led).map((e) => e.at)];
+    return lapEnds.map((at) => ({ at, order: simulate(meta, at).entries }));
+  };
+  const outOrInPits = (e: EntryState) => e.note === 'Pit' || e.note === 'DNF';
+  /**
+   * The cars `id` passed on track over a lap, best placed first: ahead of it
+   * before, behind it after, with neither car in the pits or out of the race.
+   */
+  const passedOnTrack = (before: EntryState[], after: EntryState[], id: string) => {
+    const at = (order: EntryState[], cid: string) => order.findIndex((e) => e.competitorId === cid);
+    const me = after[at(after, id)];
+    if (!me || outOrInPits(me)) return [];
+    return before.slice(0, at(before, id)).map((e) => e.competitorId)
+      .filter((cid) => at(after, cid) > at(after, id) && !outOrInPits(after[at(after, cid)]));
+  };
+
+  it('credits an overtake for every pass on track, and none for places won in the pits', () => {
+    for (const meta of races) {
+      const credited = new Map(gameStatsFor(meta).events.filter((e) => e.stats.ot).map((e) => [`${e.at}|${e.playerId}`, e.stats.ot]));
+      const expected = new Map<string, number>();
+      const laps = lapOrders(meta);
+      laps.slice(1).forEach(({ at, order }, i) => {
+        for (const car of laps[i].order) {
+          const passes = passedOnTrack(laps[i].order, order, car.competitorId).length;
+          if (passes) expected.set(`${at - 5000}|${car.competitorId}`, passes);
+        }
+      });
+      expect(credited).toEqual(expected);
+    }
+  });
+
+  it('names the car really passed, or the car ahead that pitted or retired', () => {
+    const seen = { passes: 0, pits: 0, retires: 0 };
     for (const meta of races) {
       const gs = gameStatsFor(meta);
-      const called = new Set(playsTagged(finalState(meta), 'OVERTAKE').map((p) => `${p.at}|${p.playerIds?.[0]}`));
-      const credited = new Map(gs.events.filter((e) => e.stats.ot).map((e) => [`${e.at}|${e.playerId}`, e.stats.ot]));
-      // Rebuild every lap's passes from the running order the app shows: a pass is
-      // ending the lap ahead of a car you were behind, when that car did not pit or
-      // retire on the lap (and you did not pit).
-      const lapEnds = [gs.events[0].at, ...gs.events.filter((e) => e.stats.led).map((e) => e.at)];
-      const expected = new Map<string, number>();
-      let before = simulate(meta, lapEnds[0]).entries;
-      for (const lapEnd of lapEnds.slice(1)) {
-        const after = simulate(meta, lapEnd).entries;
-        const placeAfter = new Map(after.map((e, i) => [e.competitorId, { i, note: e.note }]));
-        before.forEach((car, wasAt) => {
-          const now = placeAfter.get(car.competitorId);
-          let passed = 0;
-          if (now && now.note !== 'Pit' && now.note !== 'DNF') {
-            for (const ahead of before.slice(0, wasAt)) {
-              const other = placeAfter.get(ahead.competitorId);
-              if (other && other.i > now.i && other.note !== 'Pit' && other.note !== 'DNF') passed++;
-            }
-          }
-          const key = `${lapEnd - 5000}|${car.competitorId}`;
-          const ot = Math.max(passed, called.has(key) ? 1 : 0);
-          if (ot) expected.set(key, ot);
-        });
-        before = after;
+      const laps = lapOrders(meta);
+      for (const p of playsTagged(finalState(meta), 'OVERTAKE')) {
+        const lap = Number(/^Lap (\d+)\//.exec(p.clock)?.[1]);
+        const [before, after] = [laps[lap - 1].order, laps[lap].order];
+        const [mover, other] = p.playerIds as string[];
+        const was = (id: string) => before.findIndex((e) => e.competitorId === id);
+        const now = (id: string) => after.findIndex((e) => e.competitorId === id);
+        const place = `P${now(mover) + 1}`;
+        expect(p.at).toBe(laps[lap].at - 5000);
+        expect(was(mover)).toBeGreaterThan(now(mover));
+        // The car named was ahead a lap ago and is behind now. If the mover passed
+        // the car that held the place, that car is named, else the best placed.
+        expect(was(other)).toBeLessThan(was(mover));
+        expect(now(other)).toBeGreaterThan(now(mover));
+        const holder = before[now(mover)].competitorId;
+        const passed = passedOnTrack(before, after, mover);
+        const droppedBack = passed.length ? passed : before.slice(0, was(mover)).map((e) => e.competitorId).filter((id) => now(id) > now(mover));
+        expect(other).toBe(droppedBack.includes(holder) ? holder : droppedBack[0]);
+        const credit = eventsAt(gs, p.at, mover).find((e) => e.stats.ot);
+        const [m, o] = [nameOf(mover), nameOf(other)];
+        if (passed.length) {
+          seen.passes++;
+          expect(p.description).toBe(`${m} passes ${o} for ${place}.`);
+          expect(p.headline).toBe(`Overtake for ${place}`);
+          expect(credit?.stats.ot).toBe(passed.length);
+          continue;
+        }
+        // No pass on track: the place came from the car named pitting or retiring.
+        expect(credit).toBeUndefined();
+        expect(p.headline).toBe(`Up to ${place}`);
+        const note = after[now(other)].note;
+        if (note === 'DNF') {
+          seen.retires++;
+          expect(p.description).toBe(`${m} moves up to ${place} as ${o} retires.`);
+        } else if (after[now(mover)].note === 'Pit') {
+          expect(p.description).toBe(`${m} jumps ${o} in the pits for ${place}.`);
+        } else {
+          seen.pits++;
+          expect(note).toBe('Pit');
+          expect(p.description).toBe(`${m} moves up to ${place} as ${o} pits.`);
+        }
       }
-      expect(credited).toEqual(expected);
-      for (const key of called) expect(credited.get(key)).toBeGreaterThanOrEqual(1);
     }
+    expect(Math.min(seen.passes, seen.pits, seen.retires)).toBeGreaterThan(0);
+  });
+
+  it('keeps showing Performance cards collected before overtakes were corrected', () => {
+    // Before the correction, f1.a7 had 5 overtakes and 15 points in this race (a
+    // Rare), and f1.a3 had 6 and 7.1 points (a Common). Some of those overtakes
+    // were cars ahead pitting: 14.5 points now earns a Common, and 6.1 none.
+    const event = 'f1-2026-11-21-00';
+    const rare = momentById(`perf|rare|${event}|f1.a7`);
+    expect(rare).toMatchObject({ rarity: 'rare', playerId: 'f1.a7', eventId: event, value: 14.5, headline: 'P4 from P5 12 pts 4 overtakes' });
+    expect(momentById(`perf|common|${event}|f1.a7`)).toMatchObject({ rarity: 'common', value: 14.5 });
+    expect(momentById(`perf|common|${event}|f1.a3`)).toMatchObject({ rarity: 'common', playerId: 'f1.a3', value: 6.1 });
+    expect(momentById(`perf|common|${event}|nobody`)).toBeNull();
+    expect(momentById(`perf|shiny|${event}|f1.a7`)).toBeNull();
   });
 
   it('splits the race into four stints of laps', () => {
@@ -201,9 +275,10 @@ describe('motor racing', () => {
     expect(gs.periods).toEqual(['L1–14', 'L15–28', 'L29–42', 'L43–57']);
     const led = gs.events.filter((e) => e.stats.led);
     led.forEach((e, i) => expect(e.period).toBe(i < 14 ? 0 : i < 28 ? 1 : i < 42 ? 2 : 3));
-    const pass = finalState(gp).plays.find((p) => p.tag === 'OVERTAKE') as Play;
-    expect(pass.headline).toMatch(/^Overtake for P\d+$/);
-    expect(pass.playerRoles).toEqual(['ot', 'passed']);
+    for (const pass of playsTagged(finalState(gp), 'OVERTAKE')) {
+      expect(pass.headline).toMatch(/^(Overtake for|Up to) P\d+$/);
+      expect(pass.playerRoles).toEqual(['ot', 'passed']);
+    }
   });
 });
 

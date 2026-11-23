@@ -3,12 +3,14 @@
 // game. Bigger plays and bigger games are rarer. Every sport whose simulator
 // credits players has moments.
 import { createRng } from '@/lib/random';
+import { RARITY_ORDER } from '@/logic/cards';
 
 import type { CardRarity, CardTemplate, EventMeta } from '../types';
 import { gameStatsFor, simulate } from './engines';
 import { linesUpTo, pointsOf } from './players/lines';
 import { playerById } from './players/roster';
 import { sportStats } from './players/sports';
+import type { StatLine } from './players/types';
 import { eventMetaById, eventsBetween } from './schedule';
 
 export type MomentKind = 'play' | 'performance';
@@ -78,21 +80,23 @@ export function momentsForEvent(meta: EventMeta, now: number): Moment[] {
       sportId: meta.sportId, playerId, playId: p.id, at: p.at, headline: p.headline ?? p.description, value: p.impact });
   }
   if (state.status === 'finished') {
-    const gs = gameStatsFor(meta);
-    const def = sportStats(meta.sportId);
-    for (const [playerId, line] of linesUpTo(meta.sportId, gs.events)) {
-      const points = pointsOf(meta.sportId, line);
-      const rarity = performanceRarity(points);
-      const player = playerById(playerId);
-      if (!rarity || !player) continue;
-      out.push({ id: performanceTemplateId(rarity, meta.id, playerId), competitorId: player.sideId, rarity, season: '2026',
-        kind: 'performance', eventId: meta.id, sportId: meta.sportId, playerId, playId: null, at: state.endsAt,
-        headline: def.headline(line, player.pos), value: points });
+    for (const [playerId, line] of linesUpTo(meta.sportId, gameStatsFor(meta).events)) {
+      const rarity = performanceRarity(pointsOf(meta.sportId, line));
+      const moment = rarity ? performanceMoment(meta, state.endsAt, playerId, line, rarity) : null;
+      if (moment) out.push(moment);
     }
     finishedCache.set(meta.id, out);
     if (finishedCache.size > 400) finishedCache.delete(finishedCache.keys().next().value as string);
   }
   return out;
+}
+
+function performanceMoment(meta: EventMeta, endsAt: number, playerId: string, line: StatLine, rarity: CardRarity): Moment | null {
+  const player = playerById(playerId);
+  if (!player) return null;
+  return { id: performanceTemplateId(rarity, meta.id, playerId), competitorId: player.sideId, rarity, season: '2026',
+    kind: 'performance', eventId: meta.id, sportId: meta.sportId, playerId, playId: null, at: endsAt,
+    headline: sportStats(meta.sportId).headline(line, player.pos), value: pointsOf(meta.sportId, line) };
 }
 
 /** Rebuilds a moment from its template id (for card faces and details). */
@@ -102,7 +106,18 @@ export function momentById(templateId: string): Moment | null {
   const eventId = parts[0] === 'play' ? parts[2].split('#')[0] : parts[2];
   const meta = eventMetaById(eventId);
   if (!meta) return null;
-  return momentsForEvent(meta, Number.MAX_SAFE_INTEGER).find((m) => m.id === templateId) ?? null;
+  const found = momentsForEvent(meta, Number.MAX_SAFE_INTEGER).find((m) => m.id === templateId);
+  if (found || parts[0] !== 'perf') return found ?? null;
+  // A Performance card collected before its game's stats were corrected (motor
+  // racing once counted places won when a car ahead pitted as overtakes) can now
+  // be worth a different rarity, or none. The card keeps the rarity it was
+  // collected at and shows the corrected line.
+  const [, rarity, , playerId] = parts;
+  const state = simulate(meta, Number.MAX_SAFE_INTEGER);
+  const gs = gameStatsFor(meta);
+  if (state.status !== 'finished' || !RARITY_ORDER.includes(rarity as CardRarity)
+    || !gs.lineups.some((l) => l.playerIds.includes(playerId))) return null;
+  return performanceMoment(meta, state.endsAt, playerId, linesUpTo(meta.sportId, gs.events).get(playerId) ?? {}, rarity as CardRarity);
 }
 
 /**
