@@ -54,6 +54,8 @@ interface Draft {
   player: string;
 }
 
+const FULL_TIME_SPORTS = new Set(['soccer', 'rugby_union', 'rugby_league', 'aussie_rules', 'netball']);
+
 function realTime(b: PeriodBound, within: number): number {
   return Math.round(b.start + (within / b.def.clockMin) * (b.end - b.start));
 }
@@ -87,7 +89,8 @@ function buildScript(meta: EventMeta): H2HScript {
   const sH = strengthOf(homeId) + cfg.homeEdge;
   const sA = strengthOf(awayId);
   const rel = sH / (sH + sA);
-  const factor = [0.4 + 1.2 * rel, 0.4 + 1.2 * (1 - rel)];
+  const spread = 1.2 * (cfg.strengthSpread ?? 1);
+  const factor = [1 + spread * (rel - 0.5), 1 + spread * (0.5 - rel)];
   const squads = [squadFor(homeId, 14), squadFor(awayId, 14)];
   const pickPlayer = (side: 0 | 1) => squads[side][Math.floor(Math.pow(rng.next(), 1.7) * squads[side].length)];
   const bounds = buildBounds(meta, cfg);
@@ -106,7 +109,10 @@ function buildScript(meta: EventMeta): H2HScript {
 
   const addScoring = (side: 0 | 1, periodFilter: number | null, meanScale: number) => {
     for (const type of cfg.scoring) {
-      const n = rng.poisson(type.mean * factor[side] * meanScale);
+      const mu = type.mean * factor[side] * meanScale;
+      // rng.normal's spread is about 3.5 standard deviations wide.
+      const n = cfg.countNoise === undefined ? rng.poisson(mu)
+        : Math.max(0, Math.round(rng.normal(mu, Math.sqrt(mu) * cfg.countNoise * 3.46)));
       for (let k = 0; k < n; k++) {
         const pos = periodFilter === null
           ? placeClock(rng.float(0, totalClock))
@@ -186,6 +192,20 @@ function buildScript(meta: EventMeta): H2HScript {
     }
   }
 
+  // Minor moments (shots, fouls, rebounds...) from their own seed, so they never
+  // shift a score, a result, or the settlement of a Call.
+  const detailRng = createRng(`h2h-detail:${meta.id}`);
+  for (const det of cfg.detail ?? []) {
+    const n = detailRng.poisson(det.mean);
+    for (let k = 0; k < n; k++) {
+      const pos = placeClock(detailRng.float(det.lateOnly ? totalClock * 0.5 : 0.3, totalClock));
+      const side: 0 | 1 = detailRng.chance(rel) ? 0 : 1;
+      const squad = squads[side];
+      drafts.push({ ...pos, side, kind: 'flavor', tag: det.tag, points: 0, importance: det.importance, show: true,
+        template: detailRng.pick(det.templates), player: squad[Math.floor(Math.pow(detailRng.next(), 1.25) * squad.length)] });
+    }
+  }
+
   // Turn drafts into a timeline with running scores.
   const teamIds = [homeId, awayId];
   const ordered = drafts
@@ -238,11 +258,14 @@ function buildScript(meta: EventMeta): H2HScript {
       scoreAfter: `${running[0]}-${running[1]}` });
   }
   const winner = running[0] > running[1] ? 0 : running[1] > running[0] ? 1 : shootoutWinner;
+  // Football codes say "Full time"; US sports say "Final".
+  const fullTime = FULL_TIME_SPORTS.has(meta.sportId);
+  const endWord = fullTime ? 'Full time' : 'Final';
   timeline.push({
-    at: endsAt - 1, clock: 'FT', importance: 3, tag: 'FINAL', competitorId: winner === null ? null : teamIds[winner],
+    at: endsAt - 1, clock: fullTime ? 'FT' : 'Final', importance: 3, tag: 'FINAL', competitorId: winner === null ? null : teamIds[winner],
     description: winner === null
-      ? `Full time: honours even. ${nameOf(homeId)} ${running[0]}-${running[1]} ${nameOf(awayId)}.`
-      : `Full time: ${nameOf(teamIds[winner])} win! ${nameOf(homeId)} ${running[0]}-${running[1]} ${nameOf(awayId)}.`,
+      ? `${endWord}: honours even. ${nameOf(homeId)} ${running[0]}-${running[1]} ${nameOf(awayId)}.`
+      : `${endWord}: ${nameOf(teamIds[winner])} win! ${nameOf(homeId)} ${running[0]}-${running[1]} ${nameOf(awayId)}.`,
     scoreAfter: `${running[0]}-${running[1]}`,
   });
 
@@ -260,6 +283,14 @@ function periodLabel(script: H2HScript, now: number): string {
     if (b.breakAfter && now >= b.end && now < b.end + b.breakAfter.realMin * MINUTE) return b.breakAfter.label;
   }
   return script.shootoutWinner !== null ? 'Shootout' : 'Final minutes';
+}
+
+/** The game clock at `now` ("78'", "Q4 2:19", "Half-time"), or null when not live. Cheap. */
+export function h2hClock(meta: EventMeta, now: number): string | null {
+  if (meta.disruption) return null;
+  const script = cachedScript(`h2h:${meta.id}`, () => buildScript(meta));
+  if (now < meta.startsAt || now >= script.endsAt) return null;
+  return periodLabel(script, now);
 }
 
 function statsFor(meta: EventMeta, script: H2HScript, now: number, progress: number): StatsSection[] {

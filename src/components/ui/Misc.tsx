@@ -1,4 +1,4 @@
-// Small shared pieces: section headings, cards, demo labels, segmented tabs, avatars, text fields.
+// Small shared pieces: section headings, cards, segmented tabs, avatars, text fields.
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View, type StyleProp, type TextInputProps, type ViewStyle } from 'react-native';
 
@@ -16,14 +16,6 @@ export function SectionHeading({ title, right, live }: { title: string; right?: 
 
 export function Surface({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
   return <View style={[styles.surface, style]}>{children}</View>;
-}
-
-export function DemoTag({ compact = false }: { compact?: boolean }) {
-  return (
-    <View style={styles.demo} accessibilityLabel="Demo data">
-      <Text style={styles.demoText}>{compact ? 'DEMO' : 'Demo data'}</Text>
-    </View>
-  );
 }
 
 export function Segmented<T extends string>({ options, value, onChange }: {
@@ -82,10 +74,8 @@ export function StatTile({ label, value, accent }: { label: string; value: strin
 
 const styles = StyleSheet.create({
   heading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.lg, marginTop: space.lg, marginBottom: space.sm },
-  headingText: { ...type.label, color: colors.textDim, textTransform: 'uppercase', fontSize: 12 },
+  headingText: { ...type.caps, color: colors.textDim, fontSize: 15 },
   surface: { backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, padding: space.lg },
-  demo: { borderRadius: radius.sm, borderWidth: 1, borderColor: colors.line, paddingHorizontal: 6, paddingVertical: 1, alignSelf: 'flex-start' },
-  demoText: { ...type.label, fontSize: 10, color: colors.textDim, letterSpacing: 0.8 },
   segmented: { flexDirection: 'row', backgroundColor: colors.surface, borderRadius: radius.md, padding: 4, gap: 4, borderWidth: 1, borderColor: colors.line },
   segment: { flex: 1, minHeight: 40, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6 },
   segmentOn: { backgroundColor: colors.surfaceHigh },
@@ -100,6 +90,6 @@ const styles = StyleSheet.create({
   inputError: { borderColor: colors.live },
   error: { ...type.label, color: '#FF8A95' },
   tile: { flex: 1, backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, padding: space.md, gap: 2 },
-  tileValue: { fontSize: 22, fontWeight: '800', color: colors.text, fontVariant: ['tabular-nums'] },
+  tileValue: { ...type.score, fontSize: 24, color: colors.text },
   tileLabel: { ...type.label, color: colors.textDim },
 });

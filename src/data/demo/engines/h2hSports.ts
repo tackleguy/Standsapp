@@ -48,7 +48,23 @@ export interface H2HConfig {
   tie: 'draw' | 'overtime';
   overtime?: PeriodDef & { suddenDeath: boolean; shootout?: boolean };
   homeEdge: number;
+  /**
+   * How much team strength stretches scoring (1 = fully). High-scoring sports use
+   * less, so a strong team wins 118-101, not 171-86.
+   */
+  strengthSpread?: number;
+  /**
+   * How much the number of each kind of score varies from game to game, relative
+   * to a plain random count (1). Possession sports vary far less in real life.
+   */
+  countNoise?: number;
   scoreText?: (counts: Record<string, number>, points: number) => string;
+  /**
+   * Minor moments that make the play-by-play feel complete (shots, fouls,
+   * rebounds...). Drawn from their own seed, so adding or tuning them never
+   * changes a score, a result, or how a Call settles.
+   */
+  detail?: FlavorType[];
   stats: StatDef[];
   totalWord: string; // "goals", "points", "runs"
   startText: string;
@@ -98,12 +114,31 @@ const soccer: H2HConfig = {
     ] },
     { tag: 'VAR', mean: 0.3, importance: 2, templates: ['VAR check for a possible penalty… no penalty, play on.'] },
   ],
+  detail: [
+    { tag: 'SHOT', mean: 9, importance: 1, templates: [
+      '{player} tries a shot from distance — over the bar.', '{player} shoots from the edge of the box. Blocked.',
+      '{player} curls one wide of the far post.', 'Header from {player} drifts just over.', '{player} snatches at it and drags it wide.',
+    ] },
+    { tag: 'SAVE', mean: 5, importance: 1, templates: [
+      'Comfortable save. {player}\'s effort is straight at the keeper.', 'Good save! The keeper tips {player}\'s shot around the post.',
+      '{player} forces a diving stop from the keeper.', 'Low drive from {player}, gathered at the second attempt.',
+    ] },
+    { tag: 'OFFSIDE', mean: 3.5, importance: 1, templates: [
+      'Offside. {player} ({team}) strayed beyond the last defender.', 'Flag goes up — {player} is offside.',
+    ] },
+    { tag: 'FREEKICK', mean: 4, importance: 1, templates: [
+      'Free kick to {team} in a promising position.', '{player} is brought down 25 yards out. Free kick {team}.',
+      '{player} whips the free kick in… headed clear.',
+    ] },
+    { tag: 'FOUL', mean: 5, importance: 1, templates: ['Foul by {player} ({team}) in midfield.', '{player} goes through the back of an opponent. Free kick.'] },
+  ],
   stats: [
     { label: 'Possession', kind: 'possession' },
-    { label: 'Shots', kind: 'count', tags: ['GOAL', 'CHANCE'], base: 7 },
-    { label: 'Shots on target', kind: 'count', tags: ['GOAL', 'CHANCE'], base: 1 },
+    { label: 'Shots', kind: 'count', tags: ['GOAL', 'CHANCE', 'SHOT', 'SAVE'], base: 2 },
+    { label: 'Shots on target', kind: 'count', tags: ['GOAL', 'CHANCE', 'SAVE'], base: 0 },
     { label: 'Corners', kind: 'count', tags: ['CORNER'], base: 2 },
-    { label: 'Fouls', kind: 'mean', mean: 11, spread: 6 },
+    { label: 'Fouls', kind: 'count', tags: ['FOUL', 'FREEKICK', 'YELLOW', 'RED'], base: 10 },
+    { label: 'Offsides', kind: 'count', tags: ['OFFSIDE'] },
     { label: 'Yellow cards', kind: 'count', tags: ['YELLOW'] },
   ],
 };
@@ -142,6 +177,18 @@ const rugbyUnion: H2HConfig = {
     { tag: 'SCRUM', mean: 3, importance: 1, templates: ['{team} win a scrum penalty.', 'Scrum reset on the {team} 22.'] },
     { tag: 'LINEOUT', mean: 2, importance: 1, templates: ['{team} steal the lineout!'] },
   ],
+  detail: [
+    { tag: 'FOUL', mean: 10, importance: 1, templates: [
+      'Penalty to {team} for offside at the ruck.', 'Penalty against {opp}: not rolling away.', '{team} win a penalty and kick for the corner.',
+      'High tackle by {player}. Penalty {opp}.',
+    ] },
+    { tag: 'KICK', mean: 8, importance: 1, templates: [
+      '{player} finds touch with a long kick.', 'Box kick from {player}, well contested.', 'Up-and-under from {player}.',
+      '{player} kicks into the 22. Lineout {opp}.',
+    ] },
+    { tag: 'CARRY', mean: 6, importance: 1, templates: ['{player} carries hard into contact.', 'Strong carry from {player} over the gain line.'] },
+    { tag: 'KNOCKON', mean: 4, importance: 1, templates: ['Knock-on by {player}. Scrum {opp}.', '{player} spills it forward under pressure.'] },
+  ],
   stats: [
     { label: 'Possession', kind: 'possession' },
     { label: 'Tackles', kind: 'mean', mean: 140, spread: 40 },
@@ -172,6 +219,15 @@ const rugbyLeague: H2HConfig = {
     { tag: 'SINBIN', mean: 0.3, importance: 2, templates: ['Sin bin: {player} ({team}) for a professional foul.'] },
     { tag: 'SETRESTART', mean: 3, importance: 1, templates: ['Six again to {team}.'] },
   ],
+  detail: [
+    { tag: 'SET', mean: 10, importance: 1, templates: [
+      'Strong set from {team}, {player} takes the last carry.', '{team} complete their set deep in {opp} territory.',
+      'Quick play-the-ball from {player} and {team} roll forward.',
+    ] },
+    { tag: 'KICK', mean: 6, importance: 1, templates: ['Last-tackle kick from {player} pins them deep.', 'Bomb from {player}, defused at the back.'] },
+    { tag: 'CARRY', mean: 6, importance: 1, templates: ['{player} charges up the middle for 12 metres.', 'Big hit-up from {player}.'] },
+    { tag: 'FOUL', mean: 4, importance: 1, templates: ['Penalty against {team} for a slow play-the-ball.', 'Penalty to {team}: hands in the ruck.'] },
+  ],
   stats: [
     { label: 'Possession', kind: 'possession' },
     { label: 'Run metres', kind: 'mean', mean: 1500, spread: 400 },
@@ -188,25 +244,42 @@ const basketball: H2HConfig = {
   tie: 'overtime',
   overtime: { label: 'Overtime', short: 'OT', clockMin: 5, realMin: 11, suddenDeath: false },
   homeEdge: 0.05,
+  strengthSpread: 0.35,
+  countNoise: 0.5,
   totalWord: 'points',
   startText: 'Tip-off at {venue}! {team} win the jump ball.',
   scoring: [
-    { tag: '2PT', points: 2, mean: 29, importance: 1, feedChance: 0.12, templates: [
+    { tag: '2PT', points: 2, mean: 29, importance: 1, feedChance: 0.55, templates: [
       '{player} pulls up for a mid-range jumper. Good!', '{player} drives baseline and lays it in.',
       'Alley-oop! {player} throws it down for {team}!', '{player} with a smooth floater in the lane.',
       'Two-handed slam from {player}!', '{player} spins in the post and banks it home.',
     ] },
-    { tag: '3PT', points: 3, mean: 12.5, importance: 2, feedChance: 0.4, templates: [
+    { tag: '3PT', points: 3, mean: 12.5, importance: 2, feedChance: 0.9, templates: [
       '{player} buries a three from the corner!', 'Three! {player} from way downtown.',
       '{player} step-back three… bang!', 'Catch-and-shoot triple from {player}.',
     ] },
-    { tag: 'FT', points: 1, mean: 17, importance: 1, feedChance: 0, templates: ['{player} hits from the line.'] },
+    { tag: 'FT', points: 1, mean: 17, importance: 1, feedChance: 0.18, templates: ['{player} hits from the line.', '{player} makes the free throw.'] },
   ],
   flavor: [
     { tag: 'BLOCK', mean: 5, importance: 2, templates: ['Huge block by {player}!', '{player} swats it into the stands!'] },
     { tag: 'STEAL', mean: 6, importance: 1, templates: ['Steal by {player} — {team} on the break.'] },
     { tag: 'TIMEOUT', mean: 5, importance: 1, templates: ['Timeout called by {team}.'] },
     { tag: 'REVIEW', mean: 0.4, importance: 2, templates: ['Officials go to the monitor to review a foul call.'] },
+  ],
+  detail: [
+    { tag: 'MISS', mean: 40, importance: 1, templates: [
+      '{player} misses a jumper from the elbow.', '{player} misses the three.', '{player} can\'t finish at the rim.',
+      '{player}\'s floater rims out.', '{player} misses a contested layup.', 'Airball from {player}!',
+    ] },
+    { tag: 'REB', mean: 30, importance: 1, templates: [
+      'Defensive rebound, {player}.', 'Offensive board for {player} — second chance {team}!', '{player} grabs the rebound.',
+    ] },
+    { tag: 'FOUL', mean: 14, importance: 1, templates: [
+      'Shooting foul on {player}. Two shots coming.', 'Personal foul on {player} ({team}).', 'Loose-ball foul, {player}.',
+    ] },
+    { tag: 'TO', mean: 9, importance: 1, templates: [
+      'Turnover — {player} throws it away.', 'Travelling called on {player}.', 'Shot-clock violation on {team}.', 'Offensive foul on {player}.',
+    ] },
   ],
   stats: [
     { label: 'Field goal %', kind: 'mean', mean: 46, spread: 10, suffix: '%' },
@@ -225,6 +298,7 @@ const americanFootball: H2HConfig = {
   tie: 'overtime',
   overtime: { label: 'Overtime', short: 'OT', clockMin: 10, realMin: 22, suddenDeath: true },
   homeEdge: 0.05,
+  strengthSpread: 0.8,
   totalWord: 'points',
   startText: 'Kickoff at {venue}. {team} receive.',
   scoring: [
@@ -247,6 +321,21 @@ const americanFootball: H2HConfig = {
     { tag: '4TH', mean: 1.5, importance: 2, templates: ['{team} go for it on fourth down… and convert!', 'Fourth-down stop by {team}!'] },
     { tag: 'PUNT', mean: 7, importance: 1, templates: ['{team} punt it away.'] },
     { tag: 'CHALLENGE', mean: 0.4, importance: 2, templates: ['Challenge flag thrown. After review, the call stands.'] },
+  ],
+  detail: [
+    { tag: '1ST', mean: 22, importance: 1, templates: [
+      '{player} picks up the first down.', 'Short pass to {player}, first down {team}.', '{player} runs for 12. First down.',
+      'Third-and-4… {player} moves the chains!',
+    ] },
+    { tag: 'PASS', mean: 16, importance: 1, templates: [
+      'Incomplete pass intended for {player}.', '{player} catches it for 7 yards.', 'Screen to {player}, gain of 4.', 'Pass broken up by {player}.',
+    ] },
+    { tag: 'RUN', mean: 14, importance: 1, templates: [
+      '{player} up the middle for 3 yards.', '{player} bounces it outside for 9.', '{player} stuffed at the line for no gain.',
+    ] },
+    { tag: 'FLAG', mean: 7, importance: 1, templates: [
+      'Flag on the play: holding, {team}. 10-yard penalty.', 'False start on {team}. 5 yards.', 'Pass interference on {team}!',
+    ] },
   ],
   stats: [
     { label: 'Total yards', kind: 'mean', mean: 360, spread: 120 },
@@ -281,8 +370,17 @@ const iceHockey: H2HConfig = {
     { tag: 'POST', mean: 1, importance: 2, templates: ['{player} rings it off the post!'] },
     { tag: 'REVIEW', mean: 0.3, importance: 2, templates: ['Video review for goaltender interference… no goal.'] },
   ],
+  detail: [
+    { tag: 'SHOT', mean: 20, importance: 1, templates: [
+      '{player} fires a wrist shot. Saved.', 'Slapshot from the point by {player} — blocked.', '{player} shoots, covered by the goalie.',
+      '{player} with a backhand attempt, kicked aside.',
+    ] },
+    { tag: 'HIT', mean: 8, importance: 1, templates: ['Big hit along the boards by {player}!', '{player} finishes the check.'] },
+    { tag: 'ICING', mean: 4, importance: 1, templates: ['Icing on {team}.'] },
+    { tag: 'FACEOFF', mean: 4, importance: 1, templates: ['{player} wins the offensive-zone faceoff cleanly.', 'Faceoff win for {player}.'] },
+  ],
   stats: [
-    { label: 'Shots on goal', kind: 'count', tags: ['GOAL', 'SAVE', 'POST'], base: 22 },
+    { label: 'Shots on goal', kind: 'count', tags: ['GOAL', 'SAVE', 'POST', 'SHOT'], base: 8 },
     { label: 'Faceoffs won', kind: 'possession' },
     { label: 'Hits', kind: 'mean', mean: 22, spread: 10 },
     { label: 'Blocked shots', kind: 'mean', mean: 14, spread: 6 },
@@ -296,14 +394,15 @@ const aussieRules: H2HConfig = {
   clock: 'down',
   tie: 'draw',
   homeEdge: 0.06,
+  strengthSpread: 0.7,
   totalWord: 'points',
   startText: 'The ball is bounced at {venue}! We are under way.',
   scoring: [
-    { tag: 'GOAL', points: 6, mean: 12.5, importance: 2, feedChance: 0.7, templates: [
+    { tag: 'GOAL', points: 6, mean: 12.5, importance: 2, feedChance: 1, templates: [
       'GOAL! {player} slots it from 40 out.', 'GOAL! {player} snaps around the body!',
       'GOAL! {player} marks in the pocket and kicks truly.', 'GOAL! {player} runs into an open goal for {team}.',
     ] },
-    { tag: 'BEHIND', points: 1, mean: 11, importance: 1, feedChance: 0.25, templates: [
+    { tag: 'BEHIND', points: 1, mean: 11, importance: 1, feedChance: 0.6, templates: [
       'Behind. {player} pushes the set shot wide.', 'Rushed behind conceded by {opp}.', '{player} hits the post. One point.',
     ] },
   ],
@@ -312,6 +411,10 @@ const aussieRules: H2HConfig = {
     { tag: 'TACKLE', mean: 4, importance: 1, templates: ['Holding the ball! {player} lays a crunching tackle.'] },
     { tag: 'FIFTY', mean: 0.8, importance: 2, templates: ['50-metre penalty to {team}!'] },
     { tag: 'CLEARANCE', mean: 4, importance: 1, templates: ['Clean clearance from the centre bounce by {player}.'] },
+  ],
+  detail: [
+    { tag: 'IN50', mean: 10, importance: 1, templates: ['{team} go inside 50.', '{player} launches it long into the forward line.'] },
+    { tag: 'FREE', mean: 6, importance: 1, templates: ['Free kick to {player}, high contact.', 'Free kick {team}: in the back.'] },
   ],
   scoreText: (counts, points) => `${counts.GOAL ?? 0}.${counts.BEHIND ?? 0} (${points})`,
   stats: [
@@ -329,10 +432,12 @@ const netball: H2HConfig = {
   clock: 'down',
   tie: 'draw',
   homeEdge: 0.05,
+  strengthSpread: 0.45,
+  countNoise: 0.6,
   totalWord: 'goals',
   startText: 'First centre pass to {team} at {venue}!',
   scoring: [
-    { tag: 'GOAL', points: 1, mean: 56, importance: 1, feedChance: 0.07, templates: [
+    { tag: 'GOAL', points: 1, mean: 56, importance: 1, feedChance: 0.22, templates: [
       '{player} scores from close range.', 'Goal from {player} after a slick centre pass.', '{player} makes no mistake under the post.',
     ] },
     { tag: 'SUPER', points: 2, mean: 3, importance: 2, feedChance: 1, templates: ['Super Shot! {player} lands a two-pointer from long range.'] },
@@ -341,6 +446,10 @@ const netball: H2HConfig = {
     { tag: 'INTERCEPT', mean: 8, importance: 2, templates: ['Intercept! {player} reads it perfectly.', 'Flying intercept from {player}!'] },
     { tag: 'REBOUND', mean: 5, importance: 1, templates: ['Rebound to {player}.'] },
     { tag: 'TIMEOUT', mean: 1.5, importance: 1, templates: ['Timeout called by {team}.'] },
+  ],
+  detail: [
+    { tag: 'FOUL', mean: 10, importance: 1, templates: ['Contact penalty against {player}.', 'Obstruction called on {player}.'] },
+    { tag: 'HELD', mean: 4, importance: 1, templates: ['Held ball. Free pass to {opp}.', '{player} steps — free pass {opp}.'] },
   ],
   stats: [
     { label: 'Goal accuracy', kind: 'mean', mean: 88, spread: 7, suffix: '%' },

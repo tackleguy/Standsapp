@@ -1,6 +1,6 @@
 // Public demo Sections that anyone can browse and join with a code.
 import type { Fan } from '../types';
-import { FANS } from './fans';
+import { FANS, ORIGINAL_FAN_COUNT } from './fans';
 
 export interface DemoSection {
   id: string;
@@ -15,7 +15,7 @@ export interface DemoSection {
 }
 
 function members(start: number, count: number): string[] {
-  return Array.from({ length: count }, (_, i) => FANS[(start + i * 7) % FANS.length].id);
+  return Array.from({ length: count }, (_, i) => FANS[(start + i * 7) % ORIGINAL_FAN_COUNT].id);
 }
 
 const CREATED = Date.parse('2026-09-01T12:00:00Z');

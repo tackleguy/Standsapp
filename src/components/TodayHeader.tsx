@@ -1,17 +1,20 @@
-// Top of the Today screen: wordmark, wallet, search, day picker, and sport switcher.
+// Top of the Today screen: wordmark, wallet, search, live scores ticker, day picker,
+// sport switcher, and a link to the sport's table.
 import { useRouter } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { SPORTS, sportById } from '@/config/sports';
+import { leagueName } from '@/data/api';
 import { DAY, formatNumber, relativeDayLabel, utcDayKey } from '@/lib/format';
 import { canGateCheck } from '@/logic/gateCheck';
 import { useNow } from '@/hooks/useNow';
 import { useUserStore } from '@/store/user';
-import { colors, radius, space, type } from '@/theme/tokens';
+import { colors, fonts, radius, space, type } from '@/theme/tokens';
 
+import type { CardEvent } from './event/ScoreCard';
 import { IconButton } from './ui/Button';
 import { Chip } from './ui/Chip';
-import { sportIcon } from './ui/Icon';
+import { Icon, sportIcon } from './ui/Icon';
 import { LiveDot } from './ui/LiveDot';
 
 interface Props {
@@ -24,9 +27,11 @@ interface Props {
   totalLive: number;
   liveOnly: boolean;
   onLiveOnly: (v: boolean) => void;
+  /** Live games for the scores ticker. */
+  strip: CardEvent[];
 }
 
-export function TodayHeader({ dayStart, today, onDay, sport, onSport, liveCounts, totalLive, liveOnly, onLiveOnly }: Props) {
+export function TodayHeader({ dayStart, today, onDay, sport, onSport, liveCounts, totalLive, liveOnly, onLiveOnly, strip }: Props) {
   const router = useRouter();
   const clout = useUserStore((s) => s.clout);
   const tix = useUserStore((s) => s.tix);
@@ -49,12 +54,16 @@ export function TodayHeader({ dayStart, today, onDay, sport, onSport, liveCounts
         <IconButton icon="search" label="Search" onPress={() => router.push('/search')} />
       </View>
       {totalLive > 0 ? (
-        <Pressable onPress={() => onLiveOnly(!liveOnly)} style={styles.ticker} accessibilityRole="button"
-          accessibilityLabel={liveOnly ? 'Show all events' : `Show only the ${totalLive} live events`}>
-          <LiveDot />
-          <Text style={styles.tickerText}>{totalLive} live now</Text>
-          <Text style={styles.tickerCta}>{liveOnly ? 'Show all' : 'Live only'}</Text>
-        </Pressable>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.ticker}>
+          <Pressable onPress={() => onLiveOnly(!liveOnly)} accessibilityRole="button"
+            accessibilityLabel={liveOnly ? 'Show all events' : `Show only the ${totalLive} live events`}
+            style={[styles.liveToggle, liveOnly && styles.liveToggleOn]}>
+            <LiveDot size={7} />
+            <Text style={styles.liveToggleText}>{totalLive} LIVE</Text>
+            <Text style={styles.liveToggleCta}>{liveOnly ? 'All' : 'Only'}</Text>
+          </Pressable>
+          {strip.map((e) => <TickerItem key={e.id} event={e} onPress={() => router.push({ pathname: '/event/[id]', params: { id: e.id } })} />)}
+        </ScrollView>
       ) : null}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.days}>
         {days.map((d) => {
@@ -74,22 +83,66 @@ export function TodayHeader({ dayStart, today, onDay, sport, onSport, liveCounts
             count={id === 'all' ? totalLive : liveCounts[id]} live />
         ))}
       </ScrollView>
+      {sport !== 'all' ? (
+        <Pressable onPress={() => router.push({ pathname: '/standings/[sportId]', params: { sportId: sport } })}
+          accessibilityRole="button" accessibilityLabel={`${leagueName(sport)} standings`}
+          style={({ pressed }) => [styles.tableLink, pressed && { backgroundColor: colors.surfaceHigh }]}>
+          <Icon name="podium" size={16} color={colors.accent} />
+          <Text style={styles.tableText} numberOfLines={1}>{leagueName(sport)} standings</Text>
+          <Icon name="chevron-forward" size={16} color={colors.textDim} />
+        </Pressable>
+      ) : null}
     </View>
+  );
+}
+
+/** One live game in the ticker: "BRA 1  RIV 1  76'". */
+function TickerItem({ event, onPress }: { event: CardEvent; onPress: () => void }) {
+  const isRace = event.format === 'race';
+  const sides = isRace
+    ? [...event.entries].sort((a, b) => (a.position ?? 99) - (b.position ?? 99)).slice(0, 1)
+    : [...event.entries].sort((a, b) => (a.role === 'home' ? -1 : 0) - (b.role === 'home' ? -1 : 0));
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${event.title}, ${event.periodLabel ?? 'live'}`}
+      style={({ pressed }) => [styles.tick, pressed && { backgroundColor: colors.surfaceHigh }]}>
+      {isRace ? (
+        <Text style={styles.tickName} numberOfLines={1}>{event.title.split(' ')[0]} · P1 {sides[0]?.shortName}</Text>
+      ) : sides.map((s) => (
+        <View key={s.competitorId} style={styles.tickSide}>
+          <View style={[styles.tickColor, { backgroundColor: s.colors?.[0] ?? colors.line }]} />
+          <Text style={styles.tickName}>{s.shortName}</Text>
+          <Text style={styles.tickScore}>{event.format === 'innings' ? (s.scoreText ?? '–').split(' ')[0] : s.score ?? 0}</Text>
+        </View>
+      ))}
+      <Text style={styles.tickClock} numberOfLines={1}>{event.periodLabel}</Text>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   top: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.lg, paddingTop: space.sm, gap: space.sm },
-  word: { fontSize: 30, fontWeight: '900', color: colors.text, letterSpacing: -1, flex: 1 },
+  word: { ...type.display, fontSize: 38, color: colors.text, flex: 1, textTransform: 'uppercase', fontStyle: 'italic' },
+  liveToggle: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: space.md, minHeight: 40, borderRadius: radius.md,
+    backgroundColor: 'rgba(255,77,94,0.12)', borderWidth: 1, borderColor: 'rgba(255,77,94,0.35)' },
+  liveToggleOn: { backgroundColor: 'rgba(255,77,94,0.28)', borderColor: colors.live },
+  liveToggleText: { fontFamily: fonts.black, fontSize: 15, color: colors.text, letterSpacing: 0.8 },
+  liveToggleCta: { fontFamily: fonts.bold, fontSize: 13, color: '#FF8A95', letterSpacing: 0.5, textTransform: 'uppercase' },
+  tick: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingHorizontal: space.md, minHeight: 40, borderRadius: radius.md,
+    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, maxWidth: 260 },
+  tickSide: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  tickColor: { width: 3, height: 14, borderRadius: 2 },
+  tickName: { fontFamily: fonts.bold, fontSize: 14, color: colors.textDim, letterSpacing: 0.5 },
+  tickScore: { fontFamily: fonts.heavy, fontSize: 16, color: colors.text, fontVariant: ['tabular-nums'] },
+  tickClock: { fontFamily: fonts.heavy, fontSize: 13, color: colors.live, fontVariant: ['tabular-nums'] },
+  tableLink: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginHorizontal: space.lg, marginBottom: space.sm, paddingHorizontal: space.md,
+    minHeight: 44, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
+  tableText: { flex: 1, fontFamily: fonts.bold, fontSize: 15, color: colors.text, letterSpacing: 0.6, textTransform: 'uppercase' },
   wallet: { flexDirection: 'row', alignItems: 'center', gap: space.sm, backgroundColor: colors.surface, borderRadius: radius.pill,
     paddingHorizontal: space.md, minHeight: 40, borderWidth: 1, borderColor: colors.line },
   walletText: { ...type.label, color: colors.accent, fontSize: 13 },
   walletDim: { ...type.label, color: colors.text, fontSize: 13 },
   gateDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.win },
-  ticker: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginHorizontal: space.lg, marginTop: space.md, paddingHorizontal: space.md,
-    minHeight: 40, borderRadius: radius.md, backgroundColor: 'rgba(255,77,94,0.1)', borderWidth: 1, borderColor: 'rgba(255,77,94,0.3)' },
-  tickerText: { ...type.label, color: colors.text, flex: 1, fontSize: 13 },
-  tickerCta: { ...type.label, color: '#FF8A95' },
+  ticker: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingHorizontal: space.lg, paddingTop: space.md },
   days: { gap: space.sm, paddingHorizontal: space.lg, paddingTop: space.md },
   day: { paddingHorizontal: space.md, minHeight: 36, justifyContent: 'center', borderRadius: radius.sm },
   dayOn: { backgroundColor: colors.surfaceHigh },

@@ -50,7 +50,7 @@ const styles = StyleSheet.create({
   pressed: { backgroundColor: colors.surfaceHigh },
   titles: { flex: 1 },
   title: { ...type.title, color: colors.text },
-  titleLarge: { fontSize: 30, fontWeight: '900', letterSpacing: -0.5, color: colors.text },
+  titleLarge: { ...type.display, fontSize: 36, color: colors.text, textTransform: 'uppercase' },
   subtitle: { ...type.label, color: colors.textDim, marginTop: 2 },
   right: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
 });

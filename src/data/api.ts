@@ -6,16 +6,12 @@ import { gamePackOpen } from '@/logic/packs';
 import { GAME_PACK_OPENS_MS } from '@/logic/rules';
 
 import { callsForEvent, viewCall } from './demo/calls';
-import { eventBotMessages, sectionBotMessages } from './demo/chat';
 import { finalState, simulate } from './demo/engines';
 import { FANS } from './demo/fans';
-import { demoBoard, type BoardRow } from './demo/leaderboard';
 import { eventMetaById, eventsBetween } from './demo/schedule';
 import { demoSectionById, sectionFans } from './demo/sections';
 import { competitorById, getWorld } from './demo/world';
-import type { CallView, ChatMessage, Competition, Competitor, EventMeta, EventState } from './types';
-
-export type { BoardRow };
+import type { CallView, Competition, Competitor, EventMeta, EventState } from './types';
 
 /** Events for one of the fan's local days (plus anything still live from the day before). */
 export function getDayEvents(dayStart: number, now: number): EventState[] {
@@ -134,22 +130,6 @@ export function nextEventForSport(sportId: string, now: number): EventMeta | und
   return eventsBetween(now, now + 3 * DAY).find((m) => m.sportId === sportId && !m.disruption);
 }
 
-export function getEventBotChat(eventId: string, now: number): ChatMessage[] {
-  const meta = eventMetaById(eventId);
-  if (!meta) return [];
-  return eventBotMessages(finalState(meta), now);
-}
-
-export function getSectionBotChat(sectionId: string, now: number): ChatMessage[] {
-  const section = demoSectionById(sectionId);
-  if (!section) return [];
-  return sectionBotMessages(section.id, section.sportId, sectionFans(section), now);
-}
-
-export function getLeaderboard(now: number, fanIds?: string[]): BoardRow[] {
-  return demoBoard(now, fanIds);
-}
-
 export function getFan(id: string) {
   return FANS.find((f) => f.id === id);
 }
@@ -160,3 +140,50 @@ export function getFinalState(eventId: string): EventState | null {
 }
 
 export { competitorById, getWorld };
+export { venueFor } from './demo/world';
+
+// Season: tables, records, form, championships. Crowd: who is watching right now.
+export {
+  championship, championshipRow, fightRankings, fightRecord, headToHead, leagueName, nextRoundAt, ordinal, recordLine,
+  roundsPlayed, simulateMatch, standingsKind, teamRow, teamsChampionship, teamTable,
+} from './demo/season';
+export { callCrowd } from './demo/crowd';
+export type { ChampionshipRow, FightRecord, Meeting, Result, StandingsKind, TeamRow } from './demo/season';
+export { chattersFor, crowdLabel, watchersFor } from './demo/crowd';
+
+// --- Chat (fork B) ---
+// Live chat threads: the messages, who is typing, and how many are in the stands.
+// eslint-disable-next-line import/first
+import { eventChatSnapshot, sectionChatSnapshot, type ChatSnapshot } from './demo/chat';
+export type { ChatEntry, ChatMoment, ChatSnapshot } from './demo/chat';
+export { echoesFor } from './demo/chat';
+
+export function getEventChat(eventId: string, now: number): ChatSnapshot | null {
+  const meta = eventMetaById(eventId);
+  return meta ? eventChatSnapshot(meta, now) : null;
+}
+
+export function getSectionChat(sectionId: string, now: number, joined: boolean): ChatSnapshot | null {
+  const section = demoSectionById(sectionId);
+  if (!section) return null;
+  return sectionChatSnapshot(section.id, section.sportId, sectionFans(section), section.memberIds.length + (joined ? 1 : 0), now);
+}
+
+// --- Event screen (fork C) ---
+export { crowdPick, eventWinProbability, redCardsFor, scorersFor, winProbabilitySeries } from './demo/liveExtras';
+export type { Scorer, WinMarker, WinPoint } from './demo/liveExtras';
+export { liveClock } from './demo/engines';
+
+/**
+ * Games that matter to this fan right now — a followed team (or a followed
+ * team's driver) is playing, or they have an open Call on it — for live alerts.
+ */
+export function getAlertCandidates(now: number, followed: string[], callEventIds: string[]): EventState[] {
+  if (followed.length === 0 && callEventIds.length === 0) return [];
+  const follow = new Set(followed);
+  const calls = new Set(callEventIds);
+  return eventsBetween(now - 8 * HOUR, now + 60_000)
+    .filter((m) => !m.disruption && (calls.has(m.id) || m.competitorIds.some((id) => follow.has(id) || follow.has(competitorById(id)?.parentId ?? ''))))
+    .map((m) => simulate(m, now))
+    .filter((s) => s.status === 'live' || (s.status === 'finished' && now - s.endsAt < 3 * 60_000));
+}

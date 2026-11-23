@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 import { Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 
 import { ScoreCard } from '@/components/event/ScoreCard';
+import { FeaturedEvents } from '@/components/FeaturedEvents';
 import { TodayHeader } from '@/components/TodayHeader';
 import { Button } from '@/components/ui/Button';
 import { SectionHeading } from '@/components/ui/Misc';
@@ -32,8 +33,11 @@ export default function Today() {
   const feed = useTodayFeed(dayStart, sport, liveOnly, showAllFinals, now);
 
   const header = (
-    <TodayHeader dayStart={dayStart} today={today} onDay={setDayStart} sport={sport} onSport={setSport}
-      liveCounts={feed.liveCounts} totalLive={feed.totalLive} liveOnly={liveOnly} onLiveOnly={setLiveOnly} />
+    <View>
+      <TodayHeader dayStart={dayStart} today={today} onDay={setDayStart} sport={sport} onSport={setSport}
+        liveCounts={feed.liveCounts} totalLive={feed.totalLive} liveOnly={liveOnly} onLiveOnly={setLiveOnly} strip={feed.strip} />
+      {dayStart === today && sport === 'all' && !liveOnly ? <FeaturedEvents events={feed.featured} /> : null}
+    </View>
   );
 
   const renderItem = ({ item }: { item: FeedItem }) => {
@@ -56,7 +60,7 @@ export default function Today() {
           renderItem={renderItem}
           ListHeaderComponent={header}
           ListEmptyComponent={<QuietDay liveOnly={liveOnly} onShowAll={() => setLiveOnly(false)} sport={sport} now={now} />}
-          ListFooterComponent={<Text style={styles.footer}>All scores on Stands are demo data until real feeds are connected.</Text>}
+          ListFooterComponent={<Text style={styles.footer}>Preview season: games, scores and fans are simulated until live feeds connect.</Text>}
           refreshControl={<RefreshControl refreshing={feed.isFetching && !feed.isLoading} onRefresh={() => { feed.refetch(); }} tintColor={colors.accent} />}
         />
       )}

@@ -20,8 +20,16 @@ interface TennisScript {
   firstServe: [number, number];
 }
 
+const HOLD_LINES = [
+  '{name} holds serve to 15.', '{name} holds to 30 with a big serve out wide.', '{name} saves a break point and holds.',
+  'Comfortable hold for {name}.', '{name} holds after a long deuce game.', '{name} closes out the game with an ace.',
+  '{name} holds with a forehand winner down the line.', 'Quick hold for {name}.',
+];
+
 function buildScript(meta: EventMeta): TennisScript {
   const rng = createRng(`tennis:${meta.id}`);
+  // Commentary wording only; its own seed so it can never change a result.
+  const detail = createRng(`tennis-detail:${meta.id}`);
   const ids = meta.competitorIds;
   const s = [strengthOf(ids[0]), strengthOf(ids[1])];
   const firstServer: 0 | 1 = rng.chance(0.5) ? 0 : 1;
@@ -64,9 +72,12 @@ function buildScript(meta: EventMeta): TennisScript {
           : g[winner] === g[1 - winner] ? `to level at ${g[winner]}-${g[winner]}` : `to trail ${g[winner]}-${g[1 - winner]}`;
         tl.push({ at: t, clock, importance: 2, tag: 'BREAK', competitorId: ids[winner],
           description: `Break! ${name(winner)} breaks ${name(server)} ${lead}.`, scoreAfter: score });
-      } else if (!tiebreak && rng.chance(0.06)) {
+      } else if (!tiebreak) {
+        // Same draw as always (so no result changes); every hold now shows in the feed.
+        const special = rng.chance(0.06);
         tl.push({ at: t, clock, importance: 1, tag: 'HOLD', competitorId: ids[winner],
-          description: `${name(winner)} holds to love with an ace down the T.`, scoreAfter: score });
+          description: special ? `${name(winner)} holds to love with an ace down the T.`
+            : detail.pick(HOLD_LINES).replace('{name}', name(winner)), scoreAfter: score });
       }
       setDone = (g[winner] >= 6 && g[winner] - g[1 - winner] >= 2) || g[winner] === 7;
       if (setDone) {

@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { callCrowd } from '@/data/api';
 import type { CallOption, CallView } from '@/data/types';
 import { currentTime, formatMultiplier, formatNumber, timeUntil } from '@/lib/format';
 import { tapError, tapMedium } from '@/lib/haptics';
@@ -9,10 +10,11 @@ import { potentialPayout } from '@/logic/predictions';
 import { CLOUT_DISCLAIMER, STAKE_MIN } from '@/logic/rules';
 import { toast } from '@/store/toast';
 import { useUserStore, type Prediction } from '@/store/user';
-import { colors, radius, space, type } from '@/theme/tokens';
+import { colors, fonts, radius, space, type } from '@/theme/tokens';
 
 import { CompetitorBadge } from '../Badge';
 import { Button } from '../ui/Button';
+import { Icon } from '../ui/Icon';
 import { StatusPill } from '../ui/LiveDot';
 import { StakePicker } from './StakePicker';
 
@@ -42,6 +44,7 @@ export function CallCard({ call, eventTitle, sportId, now, onNeedAccount, showEv
   const [stake, setStake] = useState(50);
   const option = call.options.find((o) => o.id === selected) ?? null;
   const status = statusText(call, now);
+  const crowd = callCrowd(call, sportId, Math.min(now, call.closesAt));
 
   const confirm = () => {
     if (!option || !onNeedAccount()) return;
@@ -61,12 +64,21 @@ export function CallCard({ call, eventTitle, sportId, now, onNeedAccount, showEv
       ) : null}
       <View style={styles.head}>
         <Text style={styles.q}>{call.question}</Text>
-        <StatusPill label={status.label} live={status.live} />
+        <View style={styles.metaRow}>
+          <StatusPill label={status.label} live={status.live} />
+          {crowd.total > 0 ? (
+            <View style={styles.crowd}>
+              <Icon name="people" size={13} color={colors.textDim} />
+              <Text style={styles.crowdText}>{formatNumber(crowd.total + (mine ? 1 : 0))} called it</Text>
+            </View>
+          ) : null}
+        </View>
       </View>
 
       <View style={styles.options}>
         {call.options.map((o) => (
           <OptionButton key={o.id} option={o} call={call} mine={mine} selected={selected === o.id}
+            share={crowd.total > 0 ? crowd.shares[o.id] ?? 0 : null}
             onPress={() => {
               if (call.status !== 'open' || mine) return;
               setSelected(selected === o.id ? null : o.id);
@@ -89,8 +101,8 @@ export function CallCard({ call, eventTitle, sportId, now, onNeedAccount, showEv
   );
 }
 
-function OptionButton({ option, call, mine, selected, onPress }: {
-  option: CallOption; call: CallView; mine: Prediction | undefined; selected: boolean; onPress: () => void;
+function OptionButton({ option, call, mine, selected, share, onPress }: {
+  option: CallOption; call: CallView; mine: Prediction | undefined; selected: boolean; share: number | null; onPress: () => void;
 }) {
   const isWinner = call.winningOptionId === option.id;
   const isMine = mine?.optionId === option.id;
@@ -100,9 +112,11 @@ function OptionButton({ option, call, mine, selected, onPress }: {
       accessibilityRole="button" accessibilityState={{ selected, disabled: !open }}
       accessibilityLabel={`${option.label}, ${formatMultiplier(option.multiplier)}${isWinner ? ', winner' : ''}${isMine ? ', your pick' : ''}`}
       style={({ pressed }) => [styles.opt, selected && styles.optOn, isWinner && styles.optWin, isMine && styles.optMine, pressed && open && styles.pressed]}>
+      {share !== null && !selected ? <View style={[styles.shareBar, { width: `${share}%` }]} /> : null}
       {option.competitorId ? <CompetitorBadge id={option.competitorId} size={24} /> : null}
       <Text style={[styles.optLabel, selected && styles.optLabelOn]} numberOfLines={1}>{option.label}</Text>
       {isMine ? <Text style={styles.youTag}>YOU</Text> : null}
+      {share !== null ? <Text style={[styles.share, selected && styles.optLabelOn]}>{share}%</Text> : null}
       <Text style={[styles.mult, selected && styles.optLabelOn]}>{formatMultiplier(option.multiplier)}</Text>
     </Pressable>
   );
@@ -121,10 +135,15 @@ const styles = StyleSheet.create({
   card: { backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, padding: space.lg, gap: space.md, marginHorizontal: space.lg, marginBottom: space.md },
   event: { ...type.label, color: colors.accent },
   head: { gap: space.sm },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, flexWrap: 'wrap' },
+  crowd: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  crowdText: { fontFamily: fonts.bold, fontSize: 13, color: colors.textDim, fontVariant: ['tabular-nums'] },
+  shareBar: { position: 'absolute', left: 0, top: 0, bottom: 0, backgroundColor: 'rgba(255,255,255,0.05)' },
+  share: { fontFamily: fonts.bold, fontSize: 14, color: colors.textDim, fontVariant: ['tabular-nums'], minWidth: 34, textAlign: 'right' },
   q: { ...type.title, fontSize: 18, color: colors.text },
   options: { gap: space.sm },
   opt: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 52, paddingHorizontal: space.md, borderRadius: radius.md,
-    backgroundColor: colors.surfaceHigh, borderWidth: 1, borderColor: colors.line },
+    backgroundColor: colors.surfaceHigh, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' },
   optOn: { backgroundColor: colors.accent, borderColor: colors.accent },
   optWin: { borderColor: colors.win, borderWidth: 2 },
   optMine: { borderColor: colors.accent, borderWidth: 2 },
@@ -132,7 +151,7 @@ const styles = StyleSheet.create({
   optLabel: { flex: 1, fontSize: 16, fontWeight: '700', color: colors.text },
   optLabelOn: { color: colors.accentInk },
   youTag: { ...type.label, fontSize: 10, color: colors.accent },
-  mult: { fontSize: 16, fontWeight: '900', color: colors.accent, fontVariant: ['tabular-nums'] },
+  mult: { fontFamily: fonts.heavy, fontSize: 18, color: colors.accent, fontVariant: ['tabular-nums'], minWidth: 48, textAlign: 'right' },
   stakeBox: { gap: space.md, paddingTop: space.sm, borderTopWidth: 1, borderColor: colors.line },
   win: { ...type.body, color: colors.text, textAlign: 'center' },
   winNum: { fontWeight: '900', color: colors.accent },

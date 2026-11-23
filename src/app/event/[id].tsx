@@ -1,28 +1,35 @@
-// An event: sticky scoreboard plus Feed, Track (motorsport), Chat, Calls, and Stats.
-import { useLocalSearchParams } from 'expo-router';
+// An event: live scoreboard plus Preview or Feed, Track (motorsport), Chat, Calls, and Stats.
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 
 import { ChatView } from '@/components/chat/ChatView';
+import { BigMoment } from '@/components/event/BigMoment';
 import { EventHeader } from '@/components/event/EventHeader';
 import { CallsTab, FeedTab } from '@/components/event/EventTabs';
+import { PreviewTab } from '@/components/event/PreviewTab';
 import { StatsView } from '@/components/event/StatsView';
+import { WinProbChart } from '@/components/event/WinProbChart';
 import { TrackTab } from '@/components/track/TrackTab';
 import { IconButton } from '@/components/ui/Button';
 import { Segmented } from '@/components/ui/Misc';
 import { Header, Screen } from '@/components/ui/Screen';
 import { EmptyState, ErrorState, Skeleton } from '@/components/ui/StateViews';
 import { sportById } from '@/config/sports';
+import { getWorld } from '@/data/api';
+import type { EventState } from '@/data/types';
 import { useAccountGate } from '@/hooks/useAccountGate';
 import { useEvent } from '@/hooks/useLiveData';
+import { useNow } from '@/hooks/useNow';
 import { hasTrackMap } from '@/lib/tracks';
 import { useUserStore } from '@/store/user';
 import { space } from '@/theme/tokens';
 
-type Tab = 'feed' | 'track' | 'chat' | 'calls' | 'stats';
+type Tab = 'preview' | 'feed' | 'track' | 'chat' | 'calls' | 'stats';
 
 export default function EventScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
   const event = useEvent(String(id));
   const [tab, setTab] = useState<Tab | null>(null);
   const [compact, setCompact] = useState(false);
@@ -39,32 +46,52 @@ export default function EventScreen() {
   if (!state) return <Screen><Header title="Event" back /><EmptyState icon="help-circle" title="Event not found" body="It may have been removed from the schedule." /></Screen>;
 
   const sport = sportById(state.meta.sportId);
+  const comp = getWorld().competitionById.get(state.meta.competitionId);
   const showTrack = hasTrackMap(state.meta.sportId);
-  const active: Tab = tab ?? (showTrack && state.status === 'live' ? 'track' : 'feed');
+  const scheduled = state.status === 'scheduled';
+  const first: Tab = scheduled ? 'preview' : 'feed';
+  const requested = tab === 'preview' && !scheduled ? 'feed' : tab === 'feed' && scheduled ? 'preview' : tab;
+  const active: Tab = requested ?? (showTrack && state.status === 'live' ? 'track' : first);
   const options: { value: Tab; label: string; badge?: number }[] = [
-    { value: 'feed', label: 'Feed' },
+    { value: first, label: scheduled ? 'Preview' : 'Feed' },
     ...(showTrack ? [{ value: 'track' as Tab, label: 'Track' }] : []),
     { value: 'chat', label: 'Chat' },
     { value: 'calls', label: 'Calls', badge: myCalls || undefined },
-    { value: 'stats', label: 'Stats' },
+    ...(scheduled ? [] : [{ value: 'stats' as Tab, label: 'Stats' }]),
   ];
+  const choose = (t: Tab) => { setTab(t); setCompact(false); };
 
   return (
     <Screen>
-      <Header title={state.meta.title} subtitle={sport?.name} back
-        right={<IconButton icon="share-outline" label="Share" onPress={() => shareEvent(state.meta.title)} />} />
+      <Header title={state.meta.title} subtitle={[sport?.name, comp?.name].filter(Boolean).join(' · ')} back
+        right={(
+          <>
+            <IconButton icon="podium-outline" label="League table" onPress={() => router.push(`/standings/${state.meta.sportId}`)} />
+            <IconButton icon="share-outline" label="Share" onPress={() => shareEvent(state.meta.title)} />
+          </>
+        )} />
       <EventHeader state={state} compact={compact && active !== 'chat'} />
-      <View style={styles.tabs}><Segmented value={active} onChange={(t) => { setTab(t); setCompact(false); }} options={options} /></View>
+      <View style={styles.tabs}><Segmented value={active} onChange={choose} options={options} /></View>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90}>
+        {active === 'preview' && <PreviewTab state={state} onScroll={onScroll} onMakeCalls={() => choose('calls')} />}
         {active === 'feed' && <FeedTab state={state} onScroll={onScroll} />}
         {active === 'track' && <TrackTab state={state} onScroll={onScroll} />}
         {active === 'chat' && <ChatView threadId={`event:${state.meta.id}`} onNeedAccount={() => require('join the chat')} />}
         {active === 'calls' && <CallsTab state={state} onScroll={onScroll} />}
-        {active === 'stats' && (
-          <ScrollView onScroll={onScroll} scrollEventThrottle={32}><StatsView sections={state.stats} /></ScrollView>
-        )}
+        {active === 'stats' && <StatsTab state={state} onScroll={onScroll} />}
+        <BigMoment state={state} />
       </KeyboardAvoidingView>
     </Screen>
+  );
+}
+
+function StatsTab({ state, onScroll }: { state: EventState; onScroll: (e: NativeSyntheticEvent<NativeScrollEvent>) => void }) {
+  const now = useNow(10_000);
+  return (
+    <ScrollView onScroll={onScroll} scrollEventThrottle={32}>
+      <WinProbChart state={state} now={now} title={state.status === 'finished' ? 'How it swung' : 'Win probability'} />
+      <StatsView sections={state.stats} />
+    </ScrollView>
   );
 }
 

@@ -42,7 +42,7 @@ export default function SectionScreen() {
       <Header title={section.name} subtitle={`${sportById(section.sportId)?.name} · code ${section.inviteCode}`} back
         right={<IconButton icon="share-social-outline" label="Share invite code" onPress={share} />} />
       <View style={styles.tabs}>
-        <Segmented value={tab} onChange={setTab} options={[{ value: 'chat', label: 'Chat' }, { value: 'board', label: 'This week' }, { value: 'about', label: 'About' }]} />
+        <Segmented value={tab} onChange={setTab} options={[{ value: 'chat', label: 'Chat' }, { value: 'board', label: 'Leaderboard' }, { value: 'about', label: 'About' }]} />
       </View>
       {tab === 'chat' && (isMember ? (
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90}>
@@ -65,7 +65,7 @@ export default function SectionScreen() {
             <Text style={styles.code} selectable>{section.inviteCode}</Text>
             <Button label="Share invite" icon="share-social" small onPress={share} />
           </View>
-          <Text style={styles.body}>{memberIds.length + (isMember ? 1 : 0)} members{demo ? ' (demo fans plus you)' : ''}.</Text>
+          <Text style={styles.body}>{memberIds.length + (isMember ? 1 : 0)} members.</Text>
           {!demo ? <Text style={styles.note}>Until Stands is connected to its database, this Section lives on this device only.</Text> : null}
           {mine ? (
             <Button label="Delete Section" icon="trash" variant="danger" onPress={() => { remove(section.id); toast('Section deleted.'); router.back(); }} />

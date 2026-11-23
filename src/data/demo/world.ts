@@ -4,7 +4,8 @@ import { createRng, hashText } from '@/lib/random';
 
 import type { Competition, Competitor } from '../types';
 import {
-  CITIES, CYCLING_TEAMS, FIRST_NAMES, NATIONS, NICKNAMES, RACING_TEAMS, SURNAMES, VENUE_WORDS,
+  CITIES, CYCLING_COLORS, CYCLING_TEAMS, FIRST_NAMES, KIT_COLORS, NATION_COLORS, NATIONS, NICKNAMES, RACING_COLORS,
+  RACING_TEAMS, SURNAMES, VENUE_WORDS,
 } from './names';
 import { PLANS, type SportPlan } from './plans';
 
@@ -50,6 +51,7 @@ function buildTeams(plan: SportPlan, count: number, compIds: string[]): Competit
   const nicknames = NICKNAMES[plan.sportId] ?? NICKNAMES.soccer;
   const codes = new Set<string>();
   const teams: Competitor[] = [];
+  const kits = createRng(`kits:${plan.sportId}`).shuffle(KIT_COLORS);
   for (let i = 0; i < count; i++) {
     const city = cities[i % cities.length];
     const nickname = nicknames[i % nicknames.length];
@@ -61,7 +63,7 @@ function buildTeams(plan: SportPlan, count: number, compIds: string[]): Competit
       name,
       shortName: teamCode(city, nickname, codes),
       parentId: null,
-      colors: null,
+      colors: kits[i % kits.length],
       competitionId: compIds[i % compIds.length],
       strength: Math.round(rng.float(0.25, 0.95) * 100) / 100,
       home: city,
@@ -77,6 +79,7 @@ function buildAthletes(plan: SportPlan, count: number, compIds: string[]): Compe
   const usedNames = new Set<string>();
   const roster = plan.roster.kind === 'athletes' ? plan.roster : null;
   const teamPool = roster?.teams === 'racing' ? RACING_TEAMS : roster?.teams === 'cycling' ? CYCLING_TEAMS : null;
+  const teamColors = roster?.teams === 'racing' ? RACING_COLORS : CYCLING_COLORS;
   const perTeam = roster?.perTeam ?? 2;
   const teamIds: string[] = [];
 
@@ -89,7 +92,7 @@ function buildAthletes(plan: SportPlan, count: number, compIds: string[]): Compe
       out.push({
         id, sportId: plan.sportId, kind: 'team', name,
         shortName: teamCode(name, name.split(' ')[1] ?? 'X', codes),
-        parentId: null, colors: null, competitionId: compIds[0],
+        parentId: null, colors: teamColors[(teamPool as readonly string[]).indexOf(name)] ?? null, competitionId: compIds[0],
         strength: Math.round(rng.float(0.3, 0.95) * 100) / 100,
         home: rng.pick(NATIONS),
       });
@@ -110,6 +113,7 @@ function buildAthletes(plan: SportPlan, count: number, compIds: string[]): Compe
     const base = rng.float(0.2, 0.95);
     // Drivers in strong cars go faster: blend personal skill with the team's.
     const strength = parent ? base * 0.45 + parent.strength * 0.55 : base;
+    const home = rng.pick(NATIONS);
     out.push({
       id: `${plan.sportId}.a${i}`,
       sportId: plan.sportId,
@@ -117,10 +121,11 @@ function buildAthletes(plan: SportPlan, count: number, compIds: string[]): Compe
       name: `${first} ${last}`,
       shortName: personCode(last, codes),
       parentId,
-      colors: null,
+      // Drivers and riders wear their team's livery; solo athletes wear their nation's colours.
+      colors: parent?.colors ?? NATION_COLORS[NATIONS.indexOf(home)] ?? null,
       competitionId: compIds[i % compIds.length],
       strength: Math.round(strength * 100) / 100,
-      home: rng.pick(NATIONS),
+      home,
     });
   }
   return out;
