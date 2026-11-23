@@ -89,13 +89,32 @@ describe('packs', () => {
 });
 
 describe('word filter', () => {
-  it('blocks bad words, including common disguises', () => {
-    expect(containsBlockedWord('what a shit call')).toBe(true);
-    expect(containsBlockedWord('Sh1t')).toBe(true);
-    expect(containsBlockedWord('fuuuuck')).toBe(true);
+  // The slurs are built from ROT13 so they never appear as plain text in the code.
+  const rot13 = (x: string) =>
+    x.replace(/[a-z]/g, (c) => String.fromCharCode(((c.charCodeAt(0) - 97 + 13) % 26) + 97));
+  const slur = rot13('avttre');
+
+  it('allows swearing', () => {
+    expect(containsBlockedWord('what a shit call')).toBe(false);
+    expect(containsBlockedWord('fuuuuck that ref')).toBe(false);
+    expect(maskBlockedWords('oh shit')).toBe('oh shit');
+  });
+
+  it('blocks extreme racial slurs, including common disguises', () => {
+    expect(containsBlockedWord(`you ${slur}`)).toBe(true);
+    expect(containsBlockedWord(slur.toUpperCase() + 'S')).toBe(true);
+    expect(containsBlockedWord(slur.replace('i', '1').replace('e', '3'))).toBe(true);
+    expect(containsBlockedWord(slur.split('').join(' '))).toBe(true);
+    expect(containsBlockedWord(rot13('avttnm'))).toBe(true);
+    expect(containsBlockedWord(rot13('jrgonpxf'))).toBe(true);
+    expect(maskBlockedWords(`oh ${slur}`)).toBe(`oh ${slur[0]}${'*'.repeat(slur.length - 1)}`);
+  });
+
+  it('does not block real names and ordinary words', () => {
+    expect(containsBlockedWord('Niger score against Nigeria')).toBe(false);
+    expect(containsBlockedWord('Kike Salas with the header')).toBe(false);
     expect(containsBlockedWord('What a goal from Scunthorpe!')).toBe(false);
-    expect(containsBlockedWord('Great pass, assessing the class of this team')).toBe(false);
-    expect(maskBlockedWords('oh shit')).toBe('oh s***');
+    expect(containsBlockedWord('A chink in their armour')).toBe(false);
   });
 });
 
