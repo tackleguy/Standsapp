@@ -88,8 +88,6 @@ describe('results are exactly as before players were added', () => {
     'aussie_rules-2026-11-17-02': ['98-98', 'draw', 1794912960000, 64, 2642163164],
     'netball-2026-11-14-00': ['62-56', 'home', 1794641160000, 64, 1105407842],
     'netball-2026-11-19-00': ['65-69', 'away', 1795073160000, 76, 3410645817],
-    'american_football-2026-11-14-00': ['34-10', 'home', 1794628200000, 90, 1994008218, 2384155254],
-    'american_football-2026-11-19-00': ['27-7', 'home', 1795060200000, 84, 93046232, 2417326527],
   };
 
   it.each(Object.keys(BEFORE))('%s', (id) => {
@@ -106,10 +104,11 @@ describe('results are exactly as before players were added', () => {
     if (descHash !== undefined) expect(hashText(f.plays.map((p) => p.description).join('\n'))).toBe(descHash);
   });
 
-  it('leaves American football to its own engine', () => {
+  it('leaves American football to its own snap-by-snap engine', () => {
     const meta = metas.find((m) => m.sportId === 'american_football')!;
     expect(h2hGameStats(meta).events).toEqual([]);
-    expect(finalState(meta).plays.some((p) => p.playerIds)).toBe(false);
+    // The football engine names players on its plays (see football.test.ts).
+    expect(finalState(meta).plays.some((p) => p.football)).toBe(true);
   });
 });
 
