@@ -19,7 +19,7 @@ export function useSettlementLoop(enabled: boolean) {
       } else if (r.lost > 0) {
         toast(`${r.lost} Call${r.lost > 1 ? 's' : ''} settled. Not this time.`, 'info');
       }
-      if (r.tix > 0) toast(`Your Stand Cards won! +${r.tix} Tix`, 'success');
+      if (r.tix > 0) toast(`Your Stand Cards earned +${r.tix} Tix`, 'success');
     };
     run();
     const id = setInterval(run, 8000);

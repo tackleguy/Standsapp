@@ -24,7 +24,7 @@ import { currentTime, DAY, timeUntil, utcDayKey } from '@/lib/format';
 import { tapError, tapMedium } from '@/lib/haptics';
 import { totalSellValue } from '@/logic/cards';
 import { gamePackOpen } from '@/logic/packs';
-import { GAME_DAY_WIN_MULTIPLIER, GAME_PACK_OPENS_MS, PACK_TYPES, SHELF_PACKS } from '@/logic/rules';
+import { GAME_PACK_CLOSES_MS, PACK_TYPES, SHELF_PACKS } from '@/logic/rules';
 import { toast } from '@/store/toast';
 import { useUserStore, type PackResult } from '@/store/user';
 import { colors, radius, space, type } from '@/theme/tokens';
@@ -151,7 +151,7 @@ export default function PackScreen() {
 
         {phase === 'pick' && !pack ? (
           <>
-            <Text style={styles.lead}>Every pack shows its odds before you open it. Tix are earned by playing and can never be bought.</Text>
+            <Text style={styles.lead}>Packs hold Play and Performance cards from real games: bigger plays and bigger games are rarer. Every pack shows its odds. Want a player or a team? Choose them on the Cards tab.</Text>
             {SHELF_PACKS.map((id) => {
               const p = PACK_TYPES[id];
               const status = id === 'daily' ? (freeReady ? 'Ready to open' : `Next one ${timeUntil(nextFree, now)}`) : null;
@@ -173,13 +173,12 @@ export default function PackScreen() {
 
             <Text style={styles.heading}>Game Packs</Text>
             <Text style={styles.packBlurb}>
-              {PACK_TYPES.game.size} Game Day cards from the teams or athletes in one game, {PACK_TYPES.game.cost} Tix.
-              On sale from {GAME_PACK_OPENS_MS / 3_600_000} hours before the start until the game ends. Game Day cards pay
-              {' '}{GAME_DAY_WIN_MULTIPLIER}× Tix if their side wins that game.
+              {PACK_TYPES.game.size} Game Day cards of plays and performances from one game, {PACK_TYPES.game.cost} Tix.
+              On sale from the start until {GAME_PACK_CLOSES_MS / 3_600_000} hours after the end. Performances join the pack once the game is over.
             </Text>
             {games.isLoading ? <Text style={styles.packBlurb}>Finding games…</Text> : null}
             {!games.isLoading && gameList.length === 0 ? (
-              <Text style={styles.packBlurb}>No Game Packs on sale right now. Check back when a game is about to start.</Text>
+              <Text style={styles.packBlurb}>No Game Packs on sale right now. Check back once a game starts.</Text>
             ) : null}
             {shownGames.map((s) => <GameRow key={s.meta.id} state={s} now={now} followed={s.meta.competitorIds.some((id) => followedSet.has(id))}
               onPress={() => choose('game', s.meta.id)} />)}
@@ -213,7 +212,7 @@ function GameRow({ state, now, followed, onPress }: { state: EventState; now: nu
         <View style={styles.gameStatus}>
           {live ? <LiveDot /> : null}
           <Text style={[styles.packMeta, { color: live ? colors.live : colors.textDim }]} numberOfLines={1}>
-            {live ? `Live${state.periodLabel ? ` · ${state.periodLabel}` : ''}` : `Starts ${timeUntil(state.meta.startsAt, now)}`}
+            {live ? `Live${state.periodLabel ? ` · ${state.periodLabel}` : ''}` : state.status === 'finished' ? 'Just finished' : `Starts ${timeUntil(state.meta.startsAt, now)}`}
             {' · '}{sportById(state.meta.sportId)?.name}
           </Text>
         </View>
@@ -233,7 +232,7 @@ function GameInfo({ state, loading }: { state: EventState | null; loading: boole
       <Text style={styles.packName}>{state.meta.title}</Text>
       <Text style={styles.packBlurb}>
         {sportById(state.meta.sportId)?.name} · {state.status === 'live' ? 'Live now' : state.status === 'scheduled' ? 'Starting soon' : 'Finished'}
-        {' · '}cards of {ids.length === 2 ? 'both sides' : `all ${ids.length} in the field`}
+        {' · '}plays and performances from {ids.length === 2 ? 'both sides' : `all ${ids.length} in the field`}
       </Text>
       {ids.length <= 8 ? (
         <View style={styles.badges}>{ids.map((id) => <CompetitorBadge key={id} id={id} size={36} />)}</View>
@@ -246,7 +245,7 @@ function GameInfo({ state, loading }: { state: EventState | null; loading: boole
 function GamePackNote() {
   return (
     <Text style={styles.packBlurb}>
-      Game Day cards carry this game’s stamp and their own print run. If their side wins this game they pay {GAME_DAY_WIN_MULTIPLIER}× Tix and get a WON stamp.
+      Game Day cards carry this game’s stamp and their own print run. While the game is on you get its plays so far; after the final whistle, performances too.
     </Text>
   );
 }

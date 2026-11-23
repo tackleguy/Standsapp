@@ -12,6 +12,17 @@ export const COMMENT_MAX = 500;
 export const COMMENT_COOLDOWN_MS = 2000;
 
 // ---------- Stand Cards ----------
+//
+// Player cards and team cards are chosen, not pulled: your first player card is
+// free, then every player card is 200 Tix and every team card 600 Tix. After
+// every game, a player card earns its player's fantasy points (rounded) in Tix,
+// and a team card the combined fantasy points of the team's 3 best performers.
+// Packs hold Play cards (one play) and Performance cards (one player's game).
+
+/** Price of a player card after your free first one. */
+export const PLAYER_CARD_TIX = 200;
+/** Price of a team card. */
+export const TEAM_CARD_TIX = 600;
 
 export type Odds = { rarity: CardRarity; chance: number }[];
 
@@ -45,11 +56,11 @@ export interface PackType {
 
 export const PACK_TYPES: Record<PackTypeId, PackType> = {
   daily: {
-    id: 'daily', name: 'Daily Free Pack', blurb: 'One free card every day. A new one arrives at midnight UTC.',
+    id: 'daily', name: 'Daily Free Pack', blurb: 'One free Play or Performance card every day. A new one arrives at midnight UTC.',
     cost: 0, size: 1, odds: PACK_ODDS, guaranteed: null, sportChoice: true,
   },
   standard: {
-    id: 'standard', name: 'Standard Pack', blurb: 'The everyday pack. Three cards from any sport you like.',
+    id: 'standard', name: 'Standard Pack', blurb: 'The everyday pack. Three Play and Performance cards from any sport you like.',
     cost: 25, size: 3, odds: PACK_ODDS, guaranteed: null, sportChoice: true,
   },
   premium: {
@@ -63,7 +74,7 @@ export const PACK_TYPES: Record<PackTypeId, PackType> = {
     guaranteed: { odds: odds(0, 0, 0.8, 0.2), label: 'Epic or better' }, sportChoice: true,
   },
   game: {
-    id: 'game', name: 'Game Pack', blurb: 'Two Game Day cards from the teams or athletes in one game. On sale only while the game is on.',
+    id: 'game', name: 'Game Pack', blurb: 'Two Game Day cards of plays and performances from one game. On sale from the start until two hours after the end.',
     cost: 20, size: 2, odds: odds(0.62, 0.27, 0.09, 0.02), guaranteed: null, sportChoice: false,
   },
 };
@@ -71,8 +82,8 @@ export const PACK_TYPES: Record<PackTypeId, PackType> = {
 /** The packs on the Pack Store shelf, in order. Game Packs are listed per game. */
 export const SHELF_PACKS: PackTypeId[] = ['daily', 'standard', 'premium', 'elite'];
 
-/** Game Packs open this long before the start and close when the game ends. */
-export const GAME_PACK_OPENS_MS = 2 * 60 * 60 * 1000;
+/** Game Packs stay on sale this long after the game ends. */
+export const GAME_PACK_CLOSES_MS = 2 * 60 * 60 * 1000;
 
 /**
  * How many copies of each card exist. `null` means no limit.
@@ -88,7 +99,7 @@ export function printRun(rarity: CardRarity, finish: CardFinish, gameDay: boolea
   return (gameDay ? PRINT_RUNS.gameDay : PRINT_RUNS[finish])[rarity];
 }
 
-/** Tix a card earns each time its team or athlete wins an event. */
+/** Classic team and athlete cards (from before players): Tix each time their team or athlete wins. */
 export const CARD_WIN_TIX: Record<CardRarity, number> = { common: 1, rare: 2, epic: 4, legendary: 10 };
 /** Game Day cards earn this many times more when their team wins *their* game. */
 export const GAME_DAY_WIN_MULTIPLIER = 2;
@@ -107,4 +118,4 @@ export const SHOWCASE_MAX = 5;
 export const SET_REWARD_PER_CARD = 10;
 
 export const CLOUT_DISCLAIMER = 'Clout is free play points with no cash value. It can never be bought or cashed out.';
-export const TIX_DISCLAIMER = 'Tix are earned by playing (daily Gate Check, winning cards, sets and quick sells). They can never be bought or cashed out, and cards have no cash value.';
+export const TIX_DISCLAIMER = 'Tix are earned by playing (daily Gate Check, player and team cards, sets and quick sells). They can never be bought or cashed out, and cards have no cash value.';

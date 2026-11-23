@@ -5,6 +5,8 @@ import { useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { CompetitorBadge } from '@/components/Badge';
+import { GetCardButton } from '@/components/cards/GetCardButton';
+import { PlayerAvatar } from '@/components/players/PlayerAvatar';
 import { ScoreCard } from '@/components/event/ScoreCard';
 import { toCardEvent } from '@/components/event/toCardEvent';
 import { ChampionshipTable, FormStrip, TeamTable } from '@/components/standings/StandingsTable';
@@ -18,6 +20,7 @@ import { sportById } from '@/config/sports';
 import {
   championship, championshipRow, fightRecord, leagueName, ordinal, standingsKind, teamRow, teamTable, venueFor,
 } from '@/data/api';
+import { rosterFor } from '@/data/playerApi';
 import type { Competitor } from '@/data/types';
 import { useCompetitor } from '@/hooks/useLiveData';
 import { useNow } from '@/hooks/useNow';
@@ -79,6 +82,7 @@ export default function CompetitorScreen() {
   if (!data) return <Screen><Header title="Not found" back /><EmptyState icon="help-circle" title="We could not find that team or athlete" /></Screen>;
 
   const { competitor: c, team, roster, recent, upcoming, record } = data;
+  const squad = c.kind === 'team' && roster.length === 0 ? rosterFor(c.id) : [];
   const isFollowed = followed.includes(c.id);
   const open = (eventId: string) => router.push({ pathname: '/event/[id]', params: { id: eventId } });
   const openCompetitor = (cid: string) => router.push({ pathname: '/competitor/[id]', params: { id: cid } });
@@ -133,6 +137,17 @@ export default function CompetitorScreen() {
           </Pressable>
         ) : null}
 
+        {/* Stand Cards: athletes are players; teams (and racing teams) have team cards. */}
+        <View style={styles.cardBox}>
+          {c.kind === 'athlete' ? (
+            <>
+              <Button label="See their performances" icon="stats-chart" variant="secondary" small
+                onPress={() => router.push({ pathname: '/player/[id]', params: { id: c.id } })} />
+              <GetCardButton playerId={c.id} />
+            </>
+          ) : <GetCardButton teamId={c.id} />}
+        </View>
+
         {tableKind === 'table' || tableKind === 'pct' ? (
           <>
             <SectionHeading title={leagueName(c.sportId)} right={<Text style={styles.link} onPress={openTable}>Full table ›</Text>} />
@@ -156,6 +171,22 @@ export default function CompetitorScreen() {
         <SectionHeading title="Recent results" />
         {recent.length === 0 ? <Text style={styles.muted}>No results in the last three days.</Text>
           : recent.map((s) => <ScoreCard key={s.meta.id} event={toCardEvent(s, followedSet, now)} onPress={() => open(s.meta.id)} />)}
+        {squad.length > 0 ? (
+          <>
+            <SectionHeading title={`Squad · ${squad.length}`} />
+            {squad.map((p) => (
+              <Pressable key={p.id} onPress={() => router.push({ pathname: '/player/[id]', params: { id: p.id } })} style={styles.teamRow}
+                accessibilityRole="button" accessibilityLabel={`${p.name}, ${p.posLabel}`}>
+                <PlayerAvatar playerId={p.id} size={36} badge={false} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.teamName} numberOfLines={1}>{p.name}{p.depth === 1 ? <Text style={styles.starter}>  · starter</Text> : null}</Text>
+                  <Text style={styles.muted2}>{p.posLabel}{p.number !== null ? ` · #${p.number}` : ''}{p.rookie ? ' · Rookie' : ''}</Text>
+                </View>
+                <Icon name="chevron-forward" size={18} color={colors.loss} />
+              </Pressable>
+            ))}
+          </>
+        ) : null}
         {roster.length > 0 ? (
           <>
             <SectionHeading title={c.sportId === 'cycling' ? 'Riders' : 'Drivers'} />
@@ -196,4 +227,7 @@ const styles = StyleSheet.create({
   tableCard: { marginHorizontal: space.lg, backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' },
   link: { ...type.label, color: colors.accent },
   muted: { ...type.body, color: colors.textDim, paddingHorizontal: space.lg },
+  muted2: { ...type.label, color: colors.textDim, marginTop: 1 },
+  starter: { ...type.label, color: colors.win },
+  cardBox: { paddingHorizontal: space.lg, marginTop: space.md, gap: space.sm },
 });

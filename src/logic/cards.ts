@@ -19,10 +19,13 @@ export function nextRarity(r: CardRarity): CardRarity | null {
 }
 
 export const isHolo = (c: Pick<OwnedCard, 'finish'>) => c.finish === 'holo';
+/** Player and team cards are chosen (bought), not pulled: they earn Tix and are never sold or traded up. */
+export const isChosen = (c: Pick<OwnedCard, 'kind'>) => c.kind === 'player' || c.kind === 'team';
 export const isGameDay = (c: Pick<OwnedCard, 'eventId'>) => !!c.eventId;
 
 /** Tix a card is worth when quick sold. */
-export function quickSellValue(c: Pick<OwnedCard, 'rarity' | 'finish'>): number {
+export function quickSellValue(c: Pick<OwnedCard, 'rarity' | 'finish' | 'kind'>): number {
+  if (isChosen(c)) return 0;
   return QUICK_SELL_TIX[c.rarity] * (isHolo(c) ? HOLO_SELL_MULTIPLIER : 1);
 }
 
@@ -32,8 +35,8 @@ export function variantKey(c: Pick<OwnedCard, 'templateId' | 'finish' | 'eventId
 }
 
 /** Favorites and showcased cards can never be quick sold or traded up. */
-export function isProtected(c: Pick<OwnedCard, 'id' | 'favorite'>, showcase: readonly string[]): boolean {
-  return !!c.favorite || showcase.includes(c.id);
+export function isProtected(c: Pick<OwnedCard, 'id' | 'favorite' | 'kind'>, showcase: readonly string[]): boolean {
+  return isChosen(c) || !!c.favorite || showcase.includes(c.id);
 }
 
 /** The copy to keep: protected copies first, then the lowest serial. */
@@ -52,16 +55,16 @@ export function duplicatesToSell(cards: OwnedCard[], showcase: readonly string[]
   return out;
 }
 
-export function totalSellValue(cards: Pick<OwnedCard, 'rarity' | 'finish'>[]): number {
+export function totalSellValue(cards: Pick<OwnedCard, 'rarity' | 'finish' | 'kind'>[]): number {
   return cards.reduce((sum, c) => sum + quickSellValue(c), 0);
 }
 
 const SCORE: Record<CardRarity, number> = { common: 1, rare: 5, epic: 25, legendary: 100 };
 export const SET_SCORE = 100;
 
-/** Collector score: rarer cards count for more, Holo doubles, each finished set adds 100. */
-export function collectorScore(cards: Pick<OwnedCard, 'rarity' | 'finish'>[], setsClaimed = 0): number {
-  return cards.reduce((sum, c) => sum + SCORE[c.rarity] * (isHolo(c) ? 2 : 1), 0) + setsClaimed * SET_SCORE;
+/** Collector score: rarer pulled cards count for more, Holo doubles, each finished set adds 100. */
+export function collectorScore(cards: Pick<OwnedCard, 'rarity' | 'finish' | 'kind'>[], setsClaimed = 0): number {
+  return cards.reduce((sum, c) => sum + (isChosen(c) ? 0 : SCORE[c.rarity] * (isHolo(c) ? 2 : 1)), 0) + setsClaimed * SET_SCORE;
 }
 
 export interface CardGroup {
@@ -113,6 +116,7 @@ export function sortGroups(groups: CardGroup[], sort: CardSort, nameOf: (competi
 export function validateTradeUp(cards: OwnedCard[], showcase: readonly string[]): string | null {
   if (cards.length !== TRADE_UP_COUNT) return `Pick exactly ${TRADE_UP_COUNT} cards.`;
   if (new Set(cards.map((c) => c.id)).size !== cards.length) return `Pick ${TRADE_UP_COUNT} different cards.`;
+  if (cards.some(isChosen)) return 'Player and team cards cannot be traded up.';
   const rarity = cards[0].rarity;
   if (cards.some((c) => c.rarity !== rarity)) return `All ${TRADE_UP_COUNT} cards must be the same rarity.`;
   if (!nextRarity(rarity)) return 'Legendary is already the top rarity.';

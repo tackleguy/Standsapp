@@ -5,7 +5,7 @@ import { useMemo, useState } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import { PackArt } from '@/components/cards/PackArt';
-import { StandCard } from '@/components/cards/StandCard';
+import { AnyCard } from '@/components/cards/CardFaces';
 import { Button } from '@/components/ui/Button';
 import { Chip } from '@/components/ui/Chip';
 import { Icon, sportIcon } from '@/components/ui/Icon';
@@ -21,17 +21,20 @@ import { useNow } from '@/hooks/useNow';
 import { currentTime, formatNumber, utcDayKey } from '@/lib/format';
 import { tapMedium } from '@/lib/haptics';
 import {
-  collectorScore, duplicatesToSell, groupCards, isGameDay, isHolo, setProgress, SORT_LABELS,
+  collectorScore, duplicatesToSell, groupCards, isChosen, isGameDay, isHolo, setProgress, SORT_LABELS,
   sortGroups, totalSellValue, type CardSort,
 } from '@/logic/cards';
+import { MyPlayersView } from '@/components/cards/MyPlayers';
 import { SHELF_PACKS } from '@/logic/rules';
 import { toast } from '@/store/toast';
 import { useUserStore } from '@/store/user';
 import { colors, radius, space, type } from '@/theme/tokens';
 
-type Filter = CardRarity | 'all' | 'favorites' | 'holo' | 'gameday' | 'dupes';
+type Filter = CardRarity | 'all' | 'plays' | 'performances' | 'favorites' | 'holo' | 'gameday' | 'dupes';
 const FILTERS: { value: Filter; label: string }[] = [
   { value: 'all', label: 'All cards' },
+  { value: 'plays', label: 'Plays' },
+  { value: 'performances', label: 'Performances' },
   { value: 'legendary', label: 'Legendary' },
   { value: 'epic', label: 'Epic' },
   { value: 'rare', label: 'Rare' },
@@ -48,7 +51,8 @@ export default function CardsScreen() {
   const tix = useUserStore((s) => s.tix);
   const cards = useUserStore((s) => s.cards);
   const claimed = useUserStore((s) => s.claimedSets);
-  const [view, setView] = useState<'collection' | 'sets'>('collection');
+  const [view, setView] = useState<'mine' | 'collection' | 'sets'>('mine');
+  const chosenCount = useMemo(() => cards.filter(isChosen).length, [cards]);
   const claimable = useMemo(() => SPORTS.filter((sp) => !claimed.includes(sp.id)
     && setProgress(setMembers(sp.id).map((m) => m.id), cards).complete).length, [cards, claimed]);
 
@@ -57,11 +61,12 @@ export default function CardsScreen() {
       <Header title="Stand Cards" large right={<Text style={styles.tix}>🎟 {formatNumber(tix)} Tix</Text>} />
       <View style={styles.tabs}>
         <Segmented value={view} onChange={setView} options={[
-          { value: 'collection', label: `Collection · ${cards.length}` },
+          { value: 'mine', label: `My players · ${chosenCount}` },
+          { value: 'collection', label: `Collection · ${cards.length - chosenCount}` },
           { value: 'sets', label: 'Sets', badge: claimable || undefined },
         ]} />
       </View>
-      {view === 'collection' ? <CollectionView /> : <SetsView />}
+      {view === 'mine' ? <MyPlayersView /> : view === 'collection' ? <CollectionView /> : <SetsView />}
     </Screen>
   );
 }
@@ -83,11 +88,14 @@ function CollectionView() {
   const cardWidth = Math.floor((Math.min(width, 900) - space.lg * 2 - space.sm * (cols - 1)) / cols);
   const freeReady = lastFreePack !== utcDayKey(now);
 
+  const pulled = useMemo(() => cards.filter((c) => !isChosen(c)), [cards]);
   const groups = useMemo(() => {
-    const inSport = cards.filter((c) => sport === 'all' || competitorById(c.competitorId)?.sportId === sport);
+    const inSport = pulled.filter((c) => sport === 'all' || competitorById(c.competitorId)?.sportId === sport);
     const all = groupCards(inSport, showcase).filter((g) => {
       switch (filter) {
         case 'all': return true;
+        case 'plays': return g.top.kind === 'play';
+        case 'performances': return g.top.kind === 'performance';
         case 'favorites': return g.cards.some((c) => c.favorite);
         case 'holo': return isHolo(g.top);
         case 'gameday': return isGameDay(g.top);
@@ -96,10 +104,10 @@ function CollectionView() {
       }
     });
     return sortGroups(all, sort, nameOf);
-  }, [cards, showcase, sport, filter, sort]);
-  const sportsOwned = useMemo(() => SPORTS.filter((s) => cards.some((c) => competitorById(c.competitorId)?.sportId === s.id)), [cards]);
+  }, [pulled, showcase, sport, filter, sort]);
+  const sportsOwned = useMemo(() => SPORTS.filter((s) => pulled.some((c) => competitorById(c.competitorId)?.sportId === s.id)), [pulled]);
   const dupes = useMemo(() => duplicatesToSell(cards, showcase), [cards, showcase]);
-  const unique = useMemo(() => groupCards(cards).length, [cards]);
+  const unique = useMemo(() => groupCards(pulled).length, [pulled]);
   const dupeValue = totalSellValue(dupes);
 
   const sellDupes = () => {
@@ -141,7 +149,7 @@ function CollectionView() {
             </Pressable>
 
             <View style={styles.tiles}>
-              <StatTile label="Cards" value={formatNumber(cards.length)} />
+              <StatTile label="Cards" value={formatNumber(pulled.length)} />
               <StatTile label="Unique" value={formatNumber(unique)} />
               <StatTile label="Score" value={formatNumber(collectorScore(cards, claimed.length), true)} accent />
             </View>
@@ -163,14 +171,12 @@ function CollectionView() {
             <Text style={styles.count}>{SORT_LABELS[sort]} · {groups.length} card{groups.length === 1 ? '' : 's'} shown</Text>
           </View>
         }
-        ListEmptyComponent={<EmptyState icon="albums" title={cards.length ? 'No cards match' : 'No cards yet'}
-          body={cards.length ? 'Try a different filter.' : 'Open your free daily pack in the Pack Store to start your collection.'}
-          actionLabel={cards.length ? undefined : 'Open the Pack Store'} onAction={cards.length ? undefined : () => router.push('/pack')} />}
+        ListEmptyComponent={<EmptyState icon="albums" title={pulled.length ? 'No cards match' : 'No Plays or Performances yet'}
+          body={pulled.length ? 'Try a different filter.' : 'Open your free daily pack in the Pack Store to start collecting plays and performances.'}
+          actionLabel={pulled.length ? undefined : 'Open the Pack Store'} onAction={pulled.length ? undefined : () => router.push('/pack')} />}
         renderItem={({ item }) => (
           <Pressable onPress={() => router.push({ pathname: '/card/[id]', params: { id: item.top.id } })} accessibilityRole="button">
-            <StandCard competitorId={item.top.competitorId} rarity={item.top.rarity} serial={item.top.serial} width={cardWidth}
-              finish={item.top.finish} eventId={item.top.eventId} count={item.cards.length}
-              favorite={item.cards.some((c) => c.favorite)} won={item.top.wonGame} />
+            <AnyCard card={item.top} width={cardWidth} count={item.cards.length} favorite={item.cards.some((c) => c.favorite)} />
           </Pressable>
         )}
       />

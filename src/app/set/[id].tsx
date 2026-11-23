@@ -5,7 +5,7 @@ import { useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import { CompetitorBadge } from '@/components/Badge';
-import { StandCard } from '@/components/cards/StandCard';
+import { AnyCard } from '@/components/cards/CardFaces';
 import { Button } from '@/components/ui/Button';
 import { Surface } from '@/components/ui/Misc';
 import { Header, Screen } from '@/components/ui/Screen';
@@ -96,8 +96,7 @@ export default function SetScreen() {
             const copies = groupCards(mine, showcase).find((g) => g.cards.some((x) => x.id === best.id))?.cards.length ?? 1;
             return (
               <Pressable key={m.id} onPress={() => router.push({ pathname: '/card/[id]', params: { id: best.id } })} accessibilityRole="button">
-                <StandCard competitorId={best.competitorId} rarity={best.rarity} serial={best.serial} width={cardWidth}
-                  finish={best.finish} eventId={best.eventId} count={copies} favorite={best.favorite} won={best.wonGame} />
+                <AnyCard card={best} width={cardWidth} count={copies} favorite={best.favorite} />
               </Pressable>
             );
           })}

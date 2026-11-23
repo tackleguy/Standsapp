@@ -51,7 +51,7 @@ export function foilSerial(serial: number, run: number | null): string {
   return `${String(serial).padStart(String(run).length, '0')}/${run}`;
 }
 
-const FOIL: Record<CardRarity, [string, string]> = {
+export const FOIL: Record<CardRarity, [string, string]> = {
   common: ['#D7DEE8', '#8E99AB'],
   rare: ['#BFE0FF', '#4DA3FF'],
   epic: ['#E6D4FF', '#9A6BFF'],
@@ -59,7 +59,7 @@ const FOIL: Record<CardRarity, [string, string]> = {
 };
 
 /** A diagonal band of light across foil cards; it sweeps when `animated`. */
-function Sheen({ width, height, holo, animated, tint }: { width: number; height: number; holo: boolean; animated: boolean; tint: string }) {
+export function Sheen({ width, height, holo, animated, tint }: { width: number; height: number; holo: boolean; animated: boolean; tint: string }) {
   // Each card needs its own gradient name: on the web a shared name breaks when another screen is hidden.
   const id = `sheen-${useId().replace(/[^\w-]/g, '')}`;
   const reduce = useReduceMotion();
@@ -100,7 +100,7 @@ function Sheen({ width, height, holo, animated, tint }: { width: number; height:
 }
 
 /** Card stock: team-colour wash fading to night, with two printed stripes. */
-function Stock({ width, height, primary, secondary }: { width: number; height: number; primary: string; secondary: string }) {
+export function Stock({ width, height, primary, secondary }: { width: number; height: number; primary: string; secondary: string }) {
   const id = `stock-${useId().replace(/[^\w-]/g, '')}`;
   return (
     <Svg style={StyleSheet.absoluteFill} width={width} height={height} viewBox="0 0 100 140" preserveAspectRatio="none"

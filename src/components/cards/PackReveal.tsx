@@ -9,7 +9,7 @@ import { tapMedium, tapSuccess } from '@/lib/haptics';
 import { quickSellValue } from '@/logic/cards';
 import { colors, radius, space, type } from '@/theme/tokens';
 
-import { StandCard } from './StandCard';
+import { AnyCard } from './CardFaces';
 
 const BIG = (c: OwnedCard) => c.rarity === 'epic' || c.rarity === 'legendary';
 
@@ -44,8 +44,7 @@ function FlipCard({ card, revealed, onPress, width }: { card: OwnedCard; reveale
         </View>
       </Animated.View>
       <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ perspective: 800 }, { rotateY: front }] }]}>
-        <StandCard competitorId={card.competitorId} rarity={card.rarity} serial={card.serial} width={width}
-          finish={card.finish} eventId={card.eventId} animated={revealed && (BIG(card) || card.finish === 'holo')} />
+        <AnyCard card={card} width={width} animated={revealed && (BIG(card) || card.finish === 'holo')} />
       </Animated.View>
     </Pressable>
   );

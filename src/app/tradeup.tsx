@@ -5,7 +5,7 @@ import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import { PackReveal } from '@/components/cards/PackReveal';
-import { StandCard } from '@/components/cards/StandCard';
+import { AnyCard } from '@/components/cards/CardFaces';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { Segmented } from '@/components/ui/Misc';
@@ -103,8 +103,7 @@ export default function TradeUpScreen() {
                 <Pressable key={card.id} onPress={() => toggle(card.id)} accessibilityRole="checkbox" accessibilityState={{ checked: on }}
                   accessibilityLabel={`${competitorById(card.competitorId)?.name ?? 'Card'}${spare ? ', duplicate' : ''}`}
                   style={[styles.pick, on && styles.pickOn]}>
-                  <StandCard competitorId={card.competitorId} rarity={card.rarity} serial={card.serial} width={cardWidth - 6}
-                    finish={card.finish} eventId={card.eventId} />
+                  <AnyCard card={card} width={cardWidth - 6} />
                   {spare ? <Text style={styles.spare}>SPARE</Text> : null}
                   {on ? <View style={styles.check}><Icon name="checkmark" size={18} color={colors.accentInk} /></View> : null}
                 </Pressable>

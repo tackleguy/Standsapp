@@ -1,7 +1,7 @@
 // Stand Card packs: published odds, rolled fairly, numbered within each print run.
 import type { CardFinish, CardRarity, CardTemplate, EventStatus } from '@/data/types';
 
-import { GAME_PACK_OPENS_MS, HOLO_CHANCE, PACK_ODDS, printRun, type Odds, type PackType } from './rules';
+import { GAME_PACK_CLOSES_MS, HOLO_CHANCE, PACK_ODDS, printRun, type Odds, type PackType } from './rules';
 
 /** Turns a random number in [0, 1) into a rarity using the given published odds. */
 export function rollRarity(roll: number, odds: Odds = PACK_ODDS): CardRarity {
@@ -28,11 +28,16 @@ export function pickTemplate(
   templates: CardTemplate[], rarity: CardRarity, random: () => number, sportFilter?: (t: CardTemplate) => boolean,
 ): CardTemplate | null {
   const pool = templates.filter((t) => (!sportFilter || sportFilter(t)));
-  const exact = pool.filter((t) => t.rarity === rarity);
-  const source = exact.length > 0 ? exact : pool;
-  if (source.length === 0) return null;
+  if (pool.length === 0) return null;
+  // The rolled rarity, or the nearest one there is (a rarer one first, so guarantees hold).
+  const rank = RARITY_RANK[rarity];
+  const byDistance = [...new Set(pool.map((t) => t.rarity))]
+    .sort((a, b) => Math.abs(RARITY_RANK[a] - rank) - Math.abs(RARITY_RANK[b] - rank) || RARITY_RANK[b] - RARITY_RANK[a]);
+  const source = pool.filter((t) => t.rarity === byDistance[0]);
   return source[Math.floor(random() * source.length)];
 }
+
+const RARITY_RANK: Record<CardRarity, number> = { common: 0, rare: 1, epic: 2, legendary: 3 };
 
 /**
  * The print run a card is numbered in. Plain cards keep the template id so serials
@@ -100,10 +105,13 @@ export function rollCards(input: {
   return { cards, mint };
 }
 
-/** Game Packs are on sale from two hours before the start until the game ends. */
-export function gamePackOpen(state: { status: EventStatus; meta: { startsAt: number } }, now: number): boolean {
+/**
+ * Game Packs hold that game's plays and performances, so they are on sale from
+ * the start until two hours after the end.
+ */
+export function gamePackOpen(state: { status: EventStatus; endsAt: number }, now: number): boolean {
   if (state.status === 'live') return true;
-  if (state.status === 'scheduled') return state.meta.startsAt - now <= GAME_PACK_OPENS_MS;
+  if (state.status === 'finished') return now - state.endsAt <= GAME_PACK_CLOSES_MS;
   return false;
 }
 

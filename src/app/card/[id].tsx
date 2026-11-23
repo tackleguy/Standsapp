@@ -6,7 +6,8 @@ import { Animated, PanResponder, Pressable, ScrollView, StyleSheet, Text, View, 
 import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 import { CardBack } from '@/components/cards/CardBack';
-import { serialText, StandCard } from '@/components/cards/StandCard';
+import { AnyCard } from '@/components/cards/CardFaces';
+import { serialText } from '@/components/cards/StandCard';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { Surface } from '@/components/ui/Misc';
@@ -16,14 +17,18 @@ import { EmptyState } from '@/components/ui/StateViews';
 import { sportById } from '@/config/sports';
 import { competitorById, getWorld } from '@/data/api';
 import { cardFace, circulation, SET_NAME } from '@/data/demo/cardFacts';
+import { cardGames, cardNextGame } from '@/data/demo/cardEarnings';
 import { setMembers } from '@/data/demo/cards';
+import { momentById } from '@/data/demo/moments';
+import { playerById } from '@/data/playerApi';
 import { eventMetaById } from '@/data/demo/schedule';
 import type { OwnedCard } from '@/data/types';
 import { useNow } from '@/hooks/useNow';
 import { useReduceMotion } from '@/hooks/useReduceMotion';
 import { clamp, currentTime, formatDay } from '@/lib/format';
 import { tapLight, tapMedium } from '@/lib/haptics';
-import { isProtected, quickSellValue, rarityLabel } from '@/logic/cards';
+import { isChosen, isProtected, quickSellValue, rarityLabel } from '@/logic/cards';
+import { formatPoints } from '@/logic/fantasy';
 import { CARD_WIN_TIX, GAME_DAY_WIN_MULTIPLIER, PACK_TYPES, printRun, SHOWCASE_MAX } from '@/logic/rules';
 import { toast } from '@/store/toast';
 import { useUserStore } from '@/store/user';
@@ -31,6 +36,7 @@ import { colors, radius, space, type } from '@/theme/tokens';
 
 function sourceText(card: OwnedCard): string {
   if (card.source === 'tradeup') return 'Trade up';
+  if (card.source === 'pick') return 'Chosen';
   if (card.source) return PACK_TYPES[card.source].name;
   return 'Pack';
 }
@@ -117,7 +123,34 @@ export default function CardScreen() {
     if (router.canGoBack()) router.back(); else router.replace('/cards');
   };
 
-  const facts: [string, string][] = [
+  const chosen = isChosen(card);
+  const moment = card.kind === 'play' || card.kind === 'performance' ? momentById(card.templateId) : null;
+  const cardPlayer = playerById(card.playerId);
+  const momentGame = moment ? eventMetaById(moment.eventId) : undefined;
+  const canFlip = !card.kind;
+  const title = chosen ? (cardPlayer?.name ?? c?.name ?? 'Card') : moment ? moment.headline : c?.name ?? 'Card';
+  const subtitle = chosen ? `${card.kind === 'player' ? 'Player card' : 'Team card'} · ${sport?.name ?? sportById(cardPlayer?.sportId ?? '')?.name ?? ''}`
+    : moment ? `${card.kind === 'play' ? 'Play' : 'Performance'} · ${rarityLabel(card.rarity)}${card.finish === 'holo' ? ' Holo' : ''} · ${cardPlayer?.short ?? ''}`
+      : `${rarityLabel(card.rarity)}${card.finish === 'holo' ? ' Holo' : ''} · ${sport?.name ?? ''}`;
+  const chosenFacts: [string, string][] = [
+    ['Earns', card.kind === 'player'
+      ? `${cardPlayer?.short ?? 'Their'} fantasy points, rounded, in Tix after every game`
+      : 'The combined fantasy points of the team\u2019s 3 best players, rounded, in Tix after every game'],
+    ['Earned so far', `${card.earned ?? 0} Tix`],
+    ['Holder', `#${card.serial} · you got it ${formatDay(card.acquiredAt)}`],
+    ['Counts from', 'Games that start after you got the card'],
+  ];
+  const momentFacts: [string, string][] = moment ? [
+    ['Rarity', `${rarityLabel(card.rarity)}${card.finish === 'holo' ? ' · Holo parallel' : ''}${card.eventId ? ' · Game Day' : ''}`],
+    [card.kind === 'play' ? 'Play' : 'Line', card.kind === 'play' ? moment.headline : moment.headline],
+    [card.kind === 'play' ? 'Rating' : 'Fantasy pts', card.kind === 'play' ? `⚡ ${moment.value.toFixed(1)}` : formatPoints(moment.value)],
+    ['Player', `${cardPlayer?.name ?? '?'}${cardPlayer ? ` · ${cardPlayer.posLabel}` : ''}`],
+    ['Game', `${momentGame?.title ?? 'Unknown game'}${momentGame ? ` · ${formatDay(momentGame.startsAt)}` : ''}`],
+    ['Serial', run ? `#${card.serial} of ${run}` : `#${card.serial} (open print run)`],
+    ['Pulled from', `${sourceText(card)} · ${formatDay(card.acquiredAt)}`],
+    ['Quick sell', `${value} Tix`],
+  ] : [];
+  const facts: [string, string][] = chosen ? chosenFacts : moment ? momentFacts : [
     ['Rarity', `${rarityLabel(card.rarity)}${card.finish === 'holo' ? ' · Holo parallel' : ''}${card.eventId ? ' · Game Day' : ''}`],
     ['Overall', face ? `${face.rating} ${face.role}${face.form ? ` · in form +${face.form.boost} (${face.form.reason.toLowerCase()})` : ''}` : '–'],
     ...(face?.rookie ? [['Rookie card', 'RC · first season'] as [string, string]] : []),
@@ -132,20 +165,21 @@ export default function CardScreen() {
 
   return (
     <Screen>
-      <Header title={c?.name ?? 'Card'} subtitle={`${rarityLabel(card.rarity)}${card.finish === 'holo' ? ' Holo' : ''} · ${sport?.name ?? ''}`} back />
+      <Header title={title} subtitle={subtitle} back />
       <ScrollView contentContainerStyle={styles.body}>
         <Animated.View {...pan.panHandlers}
           style={{ width, height: width * 1.4, alignSelf: 'center', transform: [{ perspective: 1000 }, { rotateX }, { rotateY }] }}>
-          <Pressable onPress={() => { tapLight(); setFlipped((f) => !f); }} accessibilityRole="button"
-            accessibilityLabel={flipped ? 'Show the front of the card' : 'Flip the card to see its back'}
+          <Pressable onPress={() => { if (!canFlip) return; tapLight(); setFlipped((f) => !f); }} accessibilityRole="button"
+            accessibilityLabel={canFlip ? (flipped ? 'Show the front of the card' : 'Flip the card to see its back') : 'The card'}
             style={StyleSheet.absoluteFill}>
             <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ perspective: 900 }, { rotateY: front }] }]} pointerEvents="none">
-              <StandCard competitorId={card.competitorId} rarity={card.rarity} serial={card.serial} width={width}
-                finish={card.finish} eventId={card.eventId} favorite={favorite} won={card.wonGame} animated />
+              <AnyCard card={card} width={width} favorite={favorite} won={card.wonGame} animated />
             </Animated.View>
-            <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ perspective: 900 }, { rotateY: back }] }]} pointerEvents="none">
-              <CardBack card={card} width={width} />
-            </Animated.View>
+            {canFlip ? (
+              <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ perspective: 900 }, { rotateY: back }] }]} pointerEvents="none">
+                <CardBack card={card} width={width} />
+              </Animated.View>
+            ) : null}
             <Animated.View pointerEvents="none" style={[styles.glare, { opacity: glareOpacity, transform: [{ translateX: glareX }, { translateY: glareY }] }]}>
               <Svg width="100%" height="100%" viewBox="0 0 100 100">
                 <Defs>
@@ -159,7 +193,7 @@ export default function CardScreen() {
             </Animated.View>
           </Pressable>
         </Animated.View>
-        <Text style={styles.hint}>Tap to flip · drag to tilt it in the light</Text>
+        <Text style={styles.hint}>{canFlip ? 'Tap to flip · drag to tilt it in the light' : 'Drag to tilt it in the light'}</Text>
 
         <View style={styles.actions}>
           <Button label={favorite ? 'Favorite' : 'Add to favorites'} icon={favorite ? 'star' : 'star-outline'} small
@@ -167,7 +201,7 @@ export default function CardScreen() {
           <Button label={shown ? 'In showcase' : 'Showcase'} icon={shown ? 'ribbon' : 'ribbon-outline'} small
             variant={shown ? 'primary' : 'secondary'} style={{ flex: 1 }} onPress={onShowcase} />
         </View>
-        <Text style={styles.note}>Favorites and showcased cards are protected from quick sell and trade-ups. Your showcase holds {SHOWCASE_MAX} cards and appears on Me.</Text>
+        <Text style={styles.note}>{chosen ? `Your showcase holds ${SHOWCASE_MAX} cards and appears on Me.` : `Favorites and showcased cards are protected from quick sell and trade-ups. Your showcase holds ${SHOWCASE_MAX} cards and appears on Me.`}</Text>
 
         <Surface style={{ gap: 0, paddingVertical: space.sm }}>
           {facts.map(([k, v]) => (
@@ -195,15 +229,27 @@ export default function CardScreen() {
           </View>
         ) : null}
 
-        {c ? <Button label={`See ${c.name}`} icon="person-circle-outline" variant="secondary"
+        {chosen ? <ChosenGames card={card} /> : null}
+
+        {moment && momentGame ? (
+          <Button label="Open the game" icon="tv-outline" variant="secondary"
+            onPress={() => router.push({ pathname: '/event/[id]', params: { id: momentGame.id } })} />
+        ) : null}
+        {cardPlayer ? (
+          <Button label={`See ${cardPlayer.short}'s performance`} icon="stats-chart" variant="secondary"
+            onPress={() => router.push({ pathname: '/player/[id]', params: { id: cardPlayer.id, ...(moment ? { event: moment.eventId } : {}) } })} />
+        ) : null}
+        {c && !cardPlayer?.athlete ? <Button label={`See ${c.name}`} icon="person-circle-outline" variant="secondary"
           onPress={() => router.push({ pathname: '/competitor/[id]', params: { id: c.id } })} /> : null}
-        <Button label={locked ? 'Protected from quick sell' : `Quick sell · +${value} Tix`} icon={locked ? 'lock-closed' : 'pricetag'}
-          variant="ghost" disabled={locked} onPress={() => setConfirm(true)} />
+        {chosen ? null : (
+          <Button label={locked ? 'Protected from quick sell' : `Quick sell · +${value} Tix`} icon={locked ? 'lock-closed' : 'pricetag'}
+            variant="ghost" disabled={locked} onPress={() => setConfirm(true)} />
+        )}
       </ScrollView>
 
       <Sheet visible={confirm} onClose={() => setConfirm(false)} title="Quick sell this card?">
         <Text style={styles.sheetBody}>
-          You get {value} Tix right away and the {rarityLabel(card.rarity)}{card.finish === 'holo' ? ' Holo' : ''} {c?.name} card
+          You get {value} Tix right away and the {rarityLabel(card.rarity)}{card.finish === 'holo' ? ' Holo' : ''} {moment ? `${moment.headline} (${cardPlayer?.short ?? ''})` : c?.name} card
           {' '}#{card.serial} leaves your collection for good.{copies.length > 1 ? ` You will still have ${copies.length - 1} other cop${copies.length === 2 ? 'y' : 'ies'}.` : ' It is your only copy.'}
         </Text>
         <Button label={`Quick sell · +${value} Tix`} icon="pricetag" variant="danger" onPress={sell} />
@@ -231,3 +277,26 @@ const styles = StyleSheet.create({
   copyValue: { ...type.label, color: colors.textDim },
   sheetBody: { ...type.body, color: colors.text },
 });
+
+/** A player or team card's games since you got it, with the points and Tix each earned. */
+function ChosenGames({ card }: { card: OwnedCard }) {
+  const now = useNow(15_000);
+  const games = useMemo(() => cardGames(card, now, 10), [card, now]);
+  const next = useMemo(() => cardNextGame(card, now), [card, now]);
+  return (
+    <View style={{ gap: space.sm }}>
+      <Text style={styles.label}>Games since you got it</Text>
+      {games.length === 0 ? <Text style={styles.note}>No games yet. It starts earning from its next game.</Text> : games.map((g) => (
+        <View key={g.meta.id} style={styles.copy}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.copyMeta} numberOfLines={1}>{g.meta.title}</Text>
+            <Text style={[styles.copyMeta, { fontSize: 11 }]}>{formatDay(g.meta.startsAt)}{g.live ? ' · LIVE' : ''}{!g.played ? ' · did not play' : ''}</Text>
+          </View>
+          <Text style={styles.copySerial}>{formatPoints(g.points)}</Text>
+          <Text style={[styles.copyValue, { color: g.live ? colors.live : colors.accent }]}>{g.live ? `${g.tix} so far` : `+${g.tix} Tix`}</Text>
+        </View>
+      ))}
+      {next ? <Text style={styles.note}>Next game: {next.title} · {formatDay(next.startsAt)}</Text> : null}
+    </View>
+  );
+}

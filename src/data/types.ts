@@ -188,8 +188,8 @@ export type CardFinish = 'base' | 'holo';
 /** The packs on sale in the Pack Store. Game Packs belong to one live game. */
 export type PackTypeId = 'daily' | 'standard' | 'premium' | 'elite' | 'game';
 
-/** Where a card came from. */
-export type CardSource = PackTypeId | 'tradeup';
+/** Where a card came from. 'pick' = a player or team card you chose. */
+export type CardSource = PackTypeId | 'tradeup' | 'pick';
 
 /**
  * What a card shows. Players and teams are chosen and earn Tix from fantasy
@@ -223,6 +223,8 @@ export interface OwnedCard {
   favorite?: boolean;
   /** A Game Day card whose team or athlete won its game. */
   wonGame?: boolean;
+  /** Player and team cards: Tix earned so far. */
+  earned?: number;
 }
 
 // ---------- Fans (simulated other people in the demo) ----------

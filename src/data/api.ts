@@ -3,7 +3,6 @@
 import { SPORTS, type SportConfig } from '@/config/sports';
 import { DAY, HOUR } from '@/lib/format';
 import { gamePackOpen } from '@/logic/packs';
-import { GAME_PACK_OPENS_MS } from '@/logic/rules';
 
 import { callsForEvent, viewCall } from './demo/calls';
 import { finalState, simulate } from './demo/engines';
@@ -116,13 +115,13 @@ export function search(query: string): SearchResults {
   };
 }
 
-/** Games with a Game Pack on sale right now: live first, then the soonest to start. */
+/** Games with a Game Pack on sale right now: live first, then the ones that just finished. */
 export function getGamePackEvents(now: number): EventState[] {
-  return eventsBetween(now - 12 * HOUR, now + GAME_PACK_OPENS_MS + 1)
+  return eventsBetween(now - 12 * HOUR, now + 1)
     .filter((m) => !m.disruption)
     .map((m) => simulate(m, now))
     .filter((s) => gamePackOpen(s, now))
-    .sort((a, b) => Number(b.status === 'live') - Number(a.status === 'live') || a.meta.startsAt - b.meta.startsAt);
+    .sort((a, b) => Number(b.status === 'live') - Number(a.status === 'live') || b.meta.startsAt - a.meta.startsAt);
 }
 
 /** The next event for a sport, for quiet-day empty states. */

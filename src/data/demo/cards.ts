@@ -4,6 +4,7 @@ import { parseMintKey } from '@/logic/packs';
 import { printRun } from '@/logic/rules';
 
 import type { CardRarity, CardTemplate, Competitor } from '../types';
+import { isMomentTemplate, momentMintedBefore, momentRarity } from './moments';
 import { getWorld } from './world';
 
 export const SEASON = '2026';
@@ -30,6 +31,15 @@ export function templateById(id: string): CardTemplate | undefined {
  */
 export function mintedBefore(key: string): number {
   const { templateId, finish, eventId } = parseMintKey(key);
+  // Chosen player and team cards: how many other fans already hold this one.
+  if (templateId.startsWith('player|') || templateId.startsWith('team|')) {
+    return createRng(`minted:${templateId}`).int(templateId.startsWith('team|') ? 40 : 3, templateId.startsWith('team|') ? 900 : 400);
+  }
+  if (isMomentTemplate(templateId)) {
+    const r = momentRarity(templateId) ?? 'common';
+    const run = printRun(r, finish, !!eventId) ?? 900;
+    return momentMintedBefore(key, Math.min(run, 900));
+  }
   const rarity = templateId.split(':')[1] as CardRarity;
   const cap = rarity === 'legendary' ? 12 : rarity === 'epic' ? 60 : rarity === 'rare' ? 240 : 900;
   if (finish === 'base' && !eventId) return createRng(`minted:${templateId}`).int(0, cap) + (hashText(templateId) % 7);

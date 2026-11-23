@@ -4,25 +4,29 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
-import { allTemplates, mintedBefore, setMembers, templateById } from '@/data/demo/cards';
+import { mintedBefore, setMembers, templateById } from '@/data/demo/cards';
+import { cardEarning, cardInEvent } from '@/data/demo/cardEarnings';
+import { momentPool, momentsForEvent, type Moment } from '@/data/demo/moments';
+import { playerById, rosterFor } from '@/data/demo/players/roster';
 import { callsForEvent, outcomeFor } from '@/data/demo/calls';
 import { finalState, simulate } from '@/data/demo/engines';
 import { eventMetaById, eventsBetween } from '@/data/demo/schedule';
 import { demoSectionByCode, demoSectionById } from '@/data/demo/sections';
 import { competitorById } from '@/data/demo/world';
-import type { CallOption, CallView, CardTemplate, OwnedCard, PackTypeId } from '@/data/types';
-import { HOUR, utcDayKey } from '@/lib/format';
+import type { CallOption, CallView, OwnedCard, PackTypeId } from '@/data/types';
+import { DAY, HOUR, utcDayKey } from '@/lib/format';
 import { localId } from '@/lib/random';
 import { containsBlockedWord, FILTER_MESSAGE } from '@/lib/wordFilter';
 import { validateBirthYear, validateDisplayName, validateEmail, validateUsername } from '@/logic/account';
 import {
-  isProtected, nextRarity, quickSellValue, setProgress, validateShowcaseAdd, validateTradeUp, variantKey,
+  isChosen, isProtected, nextRarity, quickSellValue, setProgress, validateShowcaseAdd, validateTradeUp, variantKey,
 } from '@/logic/cards';
 import { computeGateCheck } from '@/logic/gateCheck';
-import { gamePackOpen, rollCards } from '@/logic/packs';
+import { gamePackOpen, mintKey, rollCards, type RolledCard } from '@/logic/packs';
 import { potentialPayout, validateStake } from '@/logic/predictions';
 import {
-  CARD_WIN_TIX, COMMENT_COOLDOWN_MS, COMMENT_MAX, GAME_DAY_WIN_MULTIPLIER, PACK_TYPES, WELCOME_CLOUT, WELCOME_TIX,
+  CARD_WIN_TIX, COMMENT_COOLDOWN_MS, COMMENT_MAX, GAME_DAY_WIN_MULTIPLIER, PACK_TYPES, PLAYER_CARD_TIX, TEAM_CARD_TIX,
+  WELCOME_CLOUT, WELCOME_TIX,
 } from '@/logic/rules';
 
 export type Currency = 'clout' | 'tix';
@@ -87,6 +91,8 @@ interface UserState {
   claimedSets: string[];
   /** UTC day key of the last Daily Free Pack. */
   lastFreePack: string | null;
+  /** The first player card is free; this records that it has been used. */
+  freePlayerUsed: boolean;
   ratings: Record<string, number>;
   reactions: Record<string, string>;
   blocked: string[];
@@ -109,6 +115,10 @@ interface UserState {
   placePrediction: (input: { call: CallView; option: CallOption; options: CallOption[]; stake: number; eventTitle: string; sportId: string; now: number }) => string | null;
   settle: (now: number) => SettleReport;
   openPack: (request: PackRequest, now: number) => PackResult | { error: string };
+  /** Choose a player card: the first is free, then PLAYER_CARD_TIX each. */
+  getPlayerCard: (playerId: string, now: number) => { card: OwnedCard; price: number } | { error: string };
+  /** Choose a team card for TEAM_CARD_TIX. */
+  getTeamCard: (teamId: string, now: number) => { card: OwnedCard; price: number } | { error: string };
   quickSell: (cardIds: string[], now: number) => { sold: number; tix: number } | { error: string };
   toggleFavorite: (cardId: string) => void;
   toggleShowcase: (cardId: string) => string | null;
@@ -157,6 +167,7 @@ function initialData() {
     showcase: [] as string[],
     claimedSets: [] as string[],
     lastFreePack: null as string | null,
+    freePlayerUsed: false,
     ratings: {} as Record<string, number>,
     reactions: {} as Record<string, string>,
     blocked: [] as string[],
@@ -173,6 +184,18 @@ const ledgerRow = (currency: Currency, amount: number, reason: string, ref: stri
   ({ id: localId('l'), currency, amount, reason, at: Date.now(), ref });
 
 const keepRecent = <T>(list: T[], max: number) => (list.length > max ? list.slice(list.length - max) : list);
+
+function momentCard(r: RolledCard, m: Moment, at: number, source: OwnedCard['source'], gameDay: string | null): OwnedCard {
+  return {
+    id: localId('c'), templateId: r.templateId, competitorId: m.competitorId, rarity: r.rarity, serial: r.serial, acquiredAt: at,
+    finish: r.finish, eventId: gameDay, source, kind: m.kind, playerId: m.playerId, playId: m.playId, gameId: m.eventId,
+  };
+}
+
+/** The price of the next player card: the first one is free. */
+export function playerCardPrice(state: { freePlayerUsed: boolean }): number {
+  return state.freePlayerUsed ? PLAYER_CARD_TIX : 0;
+}
 
 function inviteCode(): string {
   return Array.from({ length: 8 }, () => '0123456789ABCDEF'[Math.floor(Math.random() * 16)]).join('');
@@ -282,9 +305,10 @@ export const useUserStore = create<UserState>()(
         // Game Day cards earn double for their own game and get a WON stamp.
         const paid = new Set(s.cardBonusesPaid);
         const stamped = new Set<string>();
-        if (s.cards.length > 0) {
+        const classic = s.cards.filter((c) => !c.kind);
+        if (classic.length > 0) {
           const owned = new Map<string, OwnedCard[]>();
-          for (const c of s.cards) owned.set(c.competitorId, [...(owned.get(c.competitorId) ?? []), c]);
+          for (const c of classic) owned.set(c.competitorId, [...(owned.get(c.competitorId) ?? []), c]);
           // A team card (an F1 constructor, a cycling team) also pays when one of its athletes wins.
           const parentOf = (id: string) => competitorById(id)?.parentId ?? '';
           for (const meta of eventsBetween(now - 24 * HOUR, now)) {
@@ -309,12 +333,38 @@ export const useUserStore = create<UserState>()(
             }
           }
         }
+        // Player and team cards earn fantasy points as Tix after every game that
+        // started after you got them, once per card per game.
+        const earned = new Map<string, number>();
+        const chosen = s.cards.filter(isChosen);
+        if (chosen.length > 0) {
+          const recent = eventsBetween(now - 7 * DAY, now).filter((m) => !m.disruption && m.startsAt <= now);
+          for (const card of chosen) {
+            for (const meta of recent) {
+              if (meta.startsAt < card.acquiredAt) continue;
+              const key = `${card.id}:${meta.id}`;
+              if (paid.has(key) || !cardInEvent(card, meta)) continue;
+              if (simulate(meta, now).status !== 'finished') continue;
+              paid.add(key);
+              changed = true;
+              const e = cardEarning(card, meta);
+              if (e.tix <= 0) continue;
+              report.tix += e.tix;
+              earned.set(card.id, (earned.get(card.id) ?? 0) + e.tix);
+              ledger.push(ledgerRow('tix', e.tix, 'card_fantasy', card.id));
+            }
+          }
+        }
         if (!changed) return report;
         set({
           predictions,
           clout: s.clout + report.clout,
           tix: s.tix + report.tix,
-          cards: stamped.size > 0 ? s.cards.map((c) => (stamped.has(c.id) ? { ...c, wonGame: true } : c)) : s.cards,
+          cards: stamped.size > 0 || earned.size > 0 ? s.cards.map((c) => {
+            let next = stamped.has(c.id) ? { ...c, wonGame: true } : c;
+            if (earned.has(c.id)) next = { ...next, earned: (next.earned ?? 0) + (earned.get(c.id) ?? 0) };
+            return next;
+          }) : s.cards,
           cardBonusesPaid: keepRecent([...paid], 3000),
           ledger: keepRecent([...s.ledger, ...ledger], 600),
         });
@@ -330,26 +380,24 @@ export const useUserStore = create<UserState>()(
         if (packId === 'daily' && s.lastFreePack === today) return { error: 'You have opened today\u2019s free pack. A new one arrives tomorrow.' };
         if (s.tix < pack.cost) return { error: 'Not enough Tix.' };
 
-        let filter: ((t: CardTemplate) => boolean) | null = null;
+        // Packs hold Plays and Performances from recent games; a Game Pack holds this game's.
+        let pool: Moment[];
         let gameId: string | null = null;
         if (packId === 'game') {
           const meta = eventId ? eventMetaById(eventId) : undefined;
           if (!meta || meta.disruption) return { error: 'That game is not on the schedule.' };
           if (!gamePackOpen(simulate(meta, now), now)) return { error: 'The Game Pack for this game is closed.' };
-          const inGame = new Set(meta.competitorIds);
-          filter = (t) => inGame.has(t.competitorId);
+          pool = momentsForEvent(meta, now);
           gameId = meta.id;
-        } else if (sportId && pack.sportChoice) {
-          filter = (t) => competitorById(t.competitorId)?.sportId === sportId;
+          if (pool.length === 0) return { error: 'Nothing from this game is collectible yet. Try again after the first big play.' };
+        } else {
+          pool = momentPool(now, Math.random, pack.sportChoice ? sportId : null);
+          if (pool.length === 0) return { error: 'No recent games to make cards from yet. Try another sport.' };
         }
-
-        const rolled = rollCards({ pack, templates: filter ? allTemplates().filter(filter) : allTemplates(),
-          mint: s.mintCounts, random: Math.random, mintedBefore, eventId: gameId });
+        const byId = new Map(pool.map((m) => [m.id, m]));
+        const rolled = rollCards({ pack, templates: pool, mint: s.mintCounts, random: Math.random, mintedBefore, eventId: gameId });
         if ('error' in rolled) return rolled;
-        const cards: OwnedCard[] = rolled.cards.map((r, i) => ({
-          id: localId('c'), templateId: r.templateId, competitorId: r.competitorId, rarity: r.rarity, serial: r.serial,
-          acquiredAt: now + i, finish: r.finish, eventId: gameId, source: packId,
-        }));
+        const cards: OwnedCard[] = rolled.cards.map((r, i) => momentCard(r, byId.get(r.templateId)!, now + i, packId, gameId));
         const owned = new Set(s.cards.map(variantKey));
         const isNew = cards.map((c) => {
           const k = variantKey(c);
@@ -366,11 +414,52 @@ export const useUserStore = create<UserState>()(
         return { cards, isNew };
       },
 
+      getPlayerCard: (playerId, now) => {
+        const s = get();
+        if (s.profile.isGuest) return { error: 'Create a free account to collect Stand Cards.' };
+        const player = playerById(playerId);
+        if (!player) return { error: 'That player is not in the league.' };
+        if (s.cards.some((c) => c.kind === 'player' && c.playerId === playerId)) return { error: `You already have ${player.short}'s card.` };
+        const price = playerCardPrice(s);
+        if (s.tix < price) return { error: `You need ${price - s.tix} more Tix.` };
+        const templateId = `player|${playerId}`;
+        const key = mintKey(templateId);
+        const serial = (s.mintCounts[key] ?? mintedBefore(key)) + 1;
+        const card: OwnedCard = { id: localId('c'), templateId, competitorId: player.sideId, rarity: 'legendary', serial, acquiredAt: now,
+          finish: 'base', eventId: null, source: 'pick', kind: 'player', playerId, earned: 0 };
+        set({
+          cards: [...s.cards, card], tix: s.tix - price, freePlayerUsed: true, mintCounts: { ...s.mintCounts, [key]: serial },
+          ledger: price > 0 ? keepRecent([...s.ledger, { ...ledgerRow('tix', -price, 'player_card', card.id), at: now }], 600) : s.ledger,
+        });
+        return { card, price };
+      },
+
+      getTeamCard: (teamId, now) => {
+        const s = get();
+        if (s.profile.isGuest) return { error: 'Create a free account to collect Stand Cards.' };
+        const team = competitorById(teamId);
+        if (!team || team.kind !== 'team' || rosterFor(teamId).length === 0) return { error: 'That team is not in the league.' };
+        if (s.cards.some((c) => c.kind === 'team' && c.competitorId === teamId)) return { error: `You already have the ${team.name} card.` };
+        const price = TEAM_CARD_TIX;
+        if (s.tix < price) return { error: `You need ${price - s.tix} more Tix.` };
+        const templateId = `team|${teamId}`;
+        const key = mintKey(templateId);
+        const serial = (s.mintCounts[key] ?? mintedBefore(key)) + 1;
+        const card: OwnedCard = { id: localId('c'), templateId, competitorId: teamId, rarity: 'legendary', serial, acquiredAt: now,
+          finish: 'base', eventId: null, source: 'pick', kind: 'team', playerId: null, earned: 0 };
+        set({
+          cards: [...s.cards, card], tix: s.tix - price, mintCounts: { ...s.mintCounts, [key]: serial },
+          ledger: keepRecent([...s.ledger, { ...ledgerRow('tix', -price, 'team_card', card.id), at: now }], 600),
+        });
+        return { card, price };
+      },
+
       quickSell: (cardIds, now) => {
         const s = get();
         const ids = new Set(cardIds);
         const selling = s.cards.filter((c) => ids.has(c.id));
         if (selling.length === 0) return { error: 'Those cards are no longer in your collection.' };
+        if (selling.some(isChosen)) return { error: 'Player and team cards keep earning Tix, so they cannot be quick sold.' };
         if (selling.some((c) => isProtected(c, s.showcase))) {
           return { error: 'Favorites and showcased cards are protected. Unfavorite the card first.' };
         }
@@ -409,14 +498,15 @@ export const useUserStore = create<UserState>()(
         if (!target) return { error: 'Legendary is already the top rarity.' };
         // Five cards from one sport trade up within that sport; a mix can become any sport.
         const sports = new Set(picked.map((c) => competitorById(c.competitorId)?.sportId));
-        const sport = sports.size === 1 ? [...sports][0] : null;
-        const pool = allTemplates().filter((t) => t.rarity === target && (!sport || competitorById(t.competitorId)?.sportId === sport));
+        const sport = sports.size === 1 ? [...sports][0] ?? null : null;
+        let pool = momentPool(now, Math.random, sport, 12, 60).filter((m) => m.rarity === target);
+        if (pool.length === 0) pool = momentPool(now, Math.random, null, 12, 60).filter((m) => m.rarity === target);
+        if (pool.length === 0) return { error: `No ${target} cards are available right now. Try again after the next games.` };
+        const byId = new Map(pool.map((m) => [m.id, m]));
         const pack = { ...PACK_TYPES.standard, size: 1, odds: [{ rarity: target, chance: 1 }] };
         const rolled = rollCards({ pack, templates: pool, mint: s.mintCounts, random: Math.random, mintedBefore });
         if ('error' in rolled) return rolled;
-        const r = rolled.cards[0];
-        const card: OwnedCard = { id: localId('c'), templateId: r.templateId, competitorId: r.competitorId, rarity: r.rarity,
-          serial: r.serial, acquiredAt: now, finish: r.finish, eventId: null, source: 'tradeup' };
+        const card = momentCard(rolled.cards[0], byId.get(rolled.cards[0].templateId)!, now, 'tradeup', null);
         const used = new Set(cardIds);
         const remaining = s.cards.filter((c) => !used.has(c.id));
         set({ cards: [...remaining, card], mintCounts: rolled.mint });
@@ -498,9 +588,10 @@ export const useUserStore = create<UserState>()(
     }),
     {
       name: 'stands-user',
-      version: 2,
+      version: 3,
       storage: createJSONStorage(() => AsyncStorage),
       // Version 2 added Holo cards, favorites, the showcase, sets and the free pack.
+      // Version 3 added player and team cards (the first player card is free).
       // Older saves keep every card; new fields start empty.
       migrate: (saved) => {
         const old = (saved ?? {}) as Partial<UserState>;
@@ -510,6 +601,7 @@ export const useUserStore = create<UserState>()(
           showcase: old.showcase ?? [],
           claimedSets: old.claimedSets ?? [],
           lastFreePack: old.lastFreePack ?? null,
+          freePlayerUsed: old.freePlayerUsed ?? false,
         } as UserState;
       },
       // Save only data, never the functions.

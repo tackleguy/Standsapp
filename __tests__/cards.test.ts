@@ -1,7 +1,11 @@
 // Stand Cards: pack types, Game Packs, quick sell, trade-ups, sets, showcase.
 // Pure rules first, then the same rules enforced by the on-device store.
 import { allTemplates, mintedBefore, setMembers } from '@/data/demo/cards';
-import { finalState, simulate } from '@/data/demo/engines';
+import { teamPointsIn } from '@/data/demo/cardEarnings';
+import { finalState, gameStatsFor, simulate } from '@/data/demo/engines';
+import { momentById } from '@/data/demo/moments';
+import { lineOf, pointsOf } from '@/data/demo/players/lines';
+import { rosterFor } from '@/data/demo/players/roster';
 import { eventsForUtcDay } from '@/data/demo/schedule';
 import { competitorById } from '@/data/demo/world';
 import type { CardTemplate, OwnedCard } from '@/data/types';
@@ -9,7 +13,8 @@ import {
   collectorScore, duplicatesToSell, groupCards, quickSellValue, setProgress, sortGroups, validateTradeUp, variantKey,
 } from '@/logic/cards';
 import { gamePackOpen, mintKey, oddsText, parseMintKey, rollCards, rollFinish } from '@/logic/packs';
-import { CARD_WIN_TIX, GAME_DAY_WIN_MULTIPLIER, PACK_TYPES, SHOWCASE_MAX } from '@/logic/rules';
+import { fantasyTix } from '@/logic/fantasy';
+import { CARD_WIN_TIX, PACK_TYPES, PLAYER_CARD_TIX, SHOWCASE_MAX, TEAM_CARD_TIX } from '@/logic/rules';
 import { useUserStore } from '@/store/user';
 
 jest.mock('@react-native-async-storage/async-storage', () => require('@react-native-async-storage/async-storage/jest/async-storage-mock'));
@@ -73,13 +78,24 @@ describe('pack types', () => {
     expect(mintedBefore('soccer.t1:legendary@soccer-2026-11-22-03')).toBeLessThanOrEqual(3); // 30% of a run of 10
   });
 
-  it('sells Game Packs from two hours before the start until the game ends', () => {
-    const meta = { startsAt: 10 * 3_600_000 };
-    expect(gamePackOpen({ status: 'scheduled', meta }, meta.startsAt - 3 * 3_600_000)).toBe(false);
-    expect(gamePackOpen({ status: 'scheduled', meta }, meta.startsAt - 3_600_000)).toBe(true);
-    expect(gamePackOpen({ status: 'live', meta }, meta.startsAt + 1)).toBe(true);
-    expect(gamePackOpen({ status: 'finished', meta }, meta.startsAt + 1)).toBe(false);
-    expect(gamePackOpen({ status: 'cancelled', meta }, meta.startsAt - 1)).toBe(false);
+  it('sells Game Packs from the start until two hours after the end', () => {
+    const endsAt = 20 * 3_600_000;
+    expect(gamePackOpen({ status: 'scheduled', endsAt }, endsAt - 5 * 3_600_000)).toBe(false);
+    expect(gamePackOpen({ status: 'live', endsAt }, endsAt - 1)).toBe(true);
+    expect(gamePackOpen({ status: 'finished', endsAt }, endsAt + 3_600_000)).toBe(true);
+    expect(gamePackOpen({ status: 'finished', endsAt }, endsAt + 3 * 3_600_000)).toBe(false);
+    expect(gamePackOpen({ status: 'cancelled', endsAt }, endsAt - 1)).toBe(false);
+  });
+
+  it('picks the nearest rarity, rarer first, when a pool lacks the rolled one', () => {
+    const templates: CardTemplate[] = [
+      { id: 'a', competitorId: 'x', rarity: 'common', season: '2026' },
+      { id: 'b', competitorId: 'x', rarity: 'epic', season: '2026' },
+    ];
+    // Rolled rare (no rare in the pool): epic and common are equally near, so the rarer one wins.
+    const r = rollCards({ pack: { ...PACK_TYPES.daily, odds: [{ rarity: 'rare', chance: 1 }] }, templates, mint: {}, random: seq(0, 0.5, 0), mintedBefore: () => 0 });
+    if ('error' in r) throw new Error(r.error);
+    expect(r.cards[0].rarity).toBe('epic');
   });
 
   it('formats odds for the odds table', () => {
@@ -152,6 +168,18 @@ describe('packs in the store', () => {
     expect(useUserStore.getState().cards).toHaveLength(2);
   });
 
+  it('fills packs with Plays and Performances from recent games', () => {
+    const r = useUserStore.getState().openPack({ packId: 'standard', sportId: 'american_football' }, Date.now());
+    if ('error' in r) throw new Error(r.error);
+    for (const c of r.cards) {
+      expect(['play', 'performance']).toContain(c.kind);
+      expect(c.playerId).toBeTruthy();
+      expect(c.gameId).toBeTruthy();
+      expect(competitorById(c.competitorId)?.sportId).toBe('american_football');
+      expect(momentById(c.templateId)?.rarity).toBe(c.rarity);
+    }
+  });
+
   it('charges each pack its price and honors its guarantee and sport', () => {
     for (let i = 0; i < 5; i++) {
       const r = useUserStore.getState().openPack({ packId: 'premium', sportId: 'tennis' }, Date.now());
@@ -168,7 +196,7 @@ describe('packs in the store', () => {
   });
 
   it('marks first copies NEW and repeats as duplicates', () => {
-    const r = useUserStore.getState().openPack({ packId: 'standard', sportId: 'netball' }, Date.now());
+    const r = useUserStore.getState().openPack({ packId: 'standard', sportId: 'mma' }, Date.now());
     if ('error' in r) throw new Error(r.error);
     expect(r.isNew).toHaveLength(3);
     const keys = r.cards.map(variantKey);
@@ -179,49 +207,115 @@ describe('packs in the store', () => {
 
 describe('Game Packs', () => {
   beforeEach(() => signUp());
-  const meta = eventsForUtcDay(DAY).find((m) => m.sportId === 'basketball' && !m.disruption)!;
+  const meta = eventsForUtcDay(DAY).find((m) => m.sportId === 'american_football' && !m.disruption)!;
 
-  it('only sells while the game is on, and only cards from that game', () => {
+  it('sells that game\'s plays while it is on, and its performances once it is over', () => {
     const early = useUserStore.getState().openPack({ packId: 'game', eventId: meta.id }, meta.startsAt - 3 * 3_600_000);
     expect(early).toEqual({ error: 'The Game Pack for this game is closed.' });
-    const live = useUserStore.getState().openPack({ packId: 'game', eventId: meta.id }, meta.startsAt + 60_000);
+    const mid = meta.startsAt + meta.durationMs * 0.5;
+    const live = useUserStore.getState().openPack({ packId: 'game', eventId: meta.id }, mid);
     if ('error' in live) throw new Error(live.error);
     expect(live.cards).toHaveLength(2);
-    expect(live.cards.every((c) => meta.competitorIds.includes(c.competitorId) && c.eventId === meta.id)).toBe(true);
-    const after = finalState(meta).endsAt + 1000;
-    expect(useUserStore.getState().openPack({ packId: 'game', eventId: meta.id }, after)).toHaveProperty('error');
-    expect(useUserStore.getState().openPack({ packId: 'game', eventId: 'nope' }, after)).toHaveProperty('error');
-  });
-
-  it('pays Game Day cards double when their side wins that game, and stamps them WON', () => {
-    const live = useUserStore.getState().openPack({ packId: 'game', eventId: meta.id }, meta.startsAt + 60_000);
-    if ('error' in live) throw new Error(live.error);
-    const end = finalState(meta).endsAt + 1000;
-    const final = simulate(meta, end);
-    const winnerId = final.entries.find((e) => e.isWinner)?.competitorId;
-    expect(winnerId).toBeTruthy();
-    const before = useUserStore.getState().tix;
-    useUserStore.getState().settle(end);
-    const after = useUserStore.getState();
-    let expected = 0;
     for (const c of live.cards) {
-      const saved = after.cards.find((x) => x.id === c.id)!;
-      if (c.competitorId === winnerId) {
-        expect(saved.wonGame).toBe(true);
-        expected += CARD_WIN_TIX[c.rarity] * GAME_DAY_WIN_MULTIPLIER;
-      } else {
-        expect(saved.wonGame).toBeFalsy();
-      }
+      expect(c.kind).toBe('play');
+      expect(c.gameId).toBe(meta.id);
+      expect(c.eventId).toBe(meta.id);
+      expect(momentById(c.templateId)!.at).toBeLessThanOrEqual(mid);
     }
-    expect(after.tix - before).toBeGreaterThanOrEqual(expected);
+    const end = finalState(meta).endsAt;
+    const after = useUserStore.getState().openPack({ packId: 'game', eventId: meta.id }, end + 1000);
+    expect(after).toHaveProperty('cards');
+    expect(useUserStore.getState().openPack({ packId: 'game', eventId: meta.id }, end + 3 * 3_600_000)).toHaveProperty('error');
+    expect(useUserStore.getState().openPack({ packId: 'game', eventId: 'nope' }, end)).toHaveProperty('error');
   });
 
-  it('does not pay for wins that finished before the card was owned', () => {
+  it('does not pay classic cards for wins that finished before the card was owned', () => {
     const end = finalState(meta).endsAt;
     const winnerId = simulate(meta, end + 1000).entries.find((e) => e.isWinner)!.competitorId;
     useUserStore.setState({ cards: [card({ competitorId: winnerId, acquiredAt: end + 500 })] });
     const r = useUserStore.getState().settle(end + 1000);
     expect(r.tix).toBe(0);
+  });
+
+  it('still pays classic cards when their team wins', () => {
+    const end = finalState(meta).endsAt;
+    const winnerId = simulate(meta, end + 1000).entries.find((e) => e.isWinner)!.competitorId;
+    useUserStore.setState({ cards: [card({ competitorId: winnerId, rarity: 'epic', acquiredAt: meta.startsAt - 1000 })], tix: 0 });
+    const r = useUserStore.getState().settle(end + 1000);
+    expect(r.tix).toBe(CARD_WIN_TIX.epic);
+  });
+});
+
+describe('player and team cards', () => {
+  beforeEach(() => signUp(1000));
+  const meta = eventsForUtcDay(DAY).find((m) => m.sportId === 'american_football' && !m.disruption)!;
+  const homeId = meta.competitorIds[0];
+  const qb = rosterFor(homeId).find((p) => p.pos === 'QB')!;
+  const rb = rosterFor(homeId).find((p) => p.pos === 'RB')!;
+
+  it('gives the first player card free, then charges 200 Tix, and never twice for one player', () => {
+    const first = useUserStore.getState().getPlayerCard(qb.id, meta.startsAt - 60_000);
+    if ('error' in first) throw new Error(first.error);
+    expect(first.price).toBe(0);
+    expect(first.card).toMatchObject({ kind: 'player', playerId: qb.id, competitorId: homeId, earned: 0, source: 'pick' });
+    expect(useUserStore.getState().tix).toBe(1000);
+    expect(useUserStore.getState().getPlayerCard(qb.id, meta.startsAt)).toHaveProperty('error');
+    const second = useUserStore.getState().getPlayerCard(rb.id, meta.startsAt - 60_000);
+    if ('error' in second) throw new Error(second.error);
+    expect(second.price).toBe(PLAYER_CARD_TIX);
+    expect(useUserStore.getState().tix).toBe(1000 - PLAYER_CARD_TIX);
+  });
+
+  it('charges 600 Tix for a team card and refuses when short', () => {
+    useUserStore.setState({ tix: TEAM_CARD_TIX - 1 });
+    expect(useUserStore.getState().getTeamCard(homeId, Date.now())).toEqual({ error: 'You need 1 more Tix.' });
+    useUserStore.setState({ tix: TEAM_CARD_TIX });
+    const r = useUserStore.getState().getTeamCard(homeId, Date.now());
+    if ('error' in r) throw new Error(r.error);
+    expect(r.card).toMatchObject({ kind: 'team', competitorId: homeId });
+    expect(useUserStore.getState().tix).toBe(0);
+    expect(useUserStore.getState().getTeamCard(homeId, Date.now())).toHaveProperty('error');
+  });
+
+  it('pays a player card its player\'s fantasy points, rounded, once per game', () => {
+    useUserStore.getState().getPlayerCard(qb.id, meta.startsAt - 60_000);
+    const gs = gameStatsFor(meta);
+    const points = pointsOf('american_football', lineOf('american_football', gs, qb.id));
+    const end = finalState(meta).endsAt;
+    useUserStore.setState({ tix: 0 });
+    expect(useUserStore.getState().settle(meta.startsAt + 60_000).tix).toBe(0); // not finished yet
+    const r = useUserStore.getState().settle(end + 1000);
+    expect(r.tix).toBeGreaterThanOrEqual(fantasyTix(points));
+    const saved = useUserStore.getState().cards.find((c) => c.kind === 'player')!;
+    expect(saved.earned).toBe(fantasyTix(points));
+    expect(useUserStore.getState().settle(end + 2000).tix).toBe(0); // paid once
+  });
+
+  it('pays a team card its three best players\' points', () => {
+    useUserStore.getState().getTeamCard(homeId, meta.startsAt - 60_000);
+    useUserStore.setState({ tix: 0 });
+    const end = finalState(meta).endsAt;
+    useUserStore.getState().settle(end + 1000);
+    const team = useUserStore.getState().cards.find((c) => c.kind === 'team')!;
+    expect(team.earned).toBe(fantasyTix(teamPointsIn(homeId, meta).points));
+    expect(team.earned).toBeGreaterThan(0);
+  });
+
+  it('only counts games that start after you got the card', () => {
+    useUserStore.getState().getPlayerCard(qb.id, meta.startsAt + 60_000);
+    useUserStore.setState({ tix: 0 });
+    const r = useUserStore.getState().settle(finalState(meta).endsAt + 1000);
+    expect(useUserStore.getState().cards[0].earned).toBe(0);
+    expect(r.tix).toBe(0);
+  });
+
+  it('never quick sells or trades up player and team cards', () => {
+    const r = useUserStore.getState().getPlayerCard(qb.id, Date.now());
+    if ('error' in r) throw new Error(r.error);
+    expect(useUserStore.getState().quickSell([r.card.id], Date.now())).toHaveProperty('error');
+    expect(quickSellValue(r.card)).toBe(0);
+    const five = [0, 1, 2, 3, 4].map((i) => ({ ...r.card, id: `p${i}` }));
+    expect(validateTradeUp(five, [])).toMatch(/cannot be traded up/);
   });
 });
 
@@ -254,14 +348,15 @@ describe('quick sell, favorites, showcase, trade-ups and sets', () => {
   });
 
   it('trades five cards from one sport up to one better card from that sport', () => {
-    const five = Array.from({ length: 5 }, (_, i) => card({ competitorId: `cricket.t${i}` }));
+    const five = Array.from({ length: 5 }, (_, i) => card({ competitorId: `tennis.a${i}` }));
     const keep = card({ competitorId: 'soccer.t1' });
     useUserStore.setState({ cards: [...five, keep] });
     const r = useUserStore.getState().tradeUp(five.map((c) => c.id), Date.now());
     if ('error' in r) throw new Error(r.error);
     expect(r.cards[0].rarity).toBe('rare');
-    expect(competitorById(r.cards[0].competitorId)?.sportId).toBe('cricket');
+    expect(competitorById(r.cards[0].competitorId)?.sportId).toBe('tennis');
     expect(r.cards[0].source).toBe('tradeup');
+    expect(['play', 'performance']).toContain(r.cards[0].kind);
     expect(useUserStore.getState().cards.map((c) => c.id)).toEqual([keep.id, r.cards[0].id]);
     expect(useUserStore.getState().tradeUp(five.map((c) => c.id), Date.now())).toHaveProperty('error');
   });
@@ -284,6 +379,7 @@ describe('quick sell, favorites, showcase, trade-ups and sets', () => {
     expect(up.showcase).toEqual([]);
     expect(up.claimedSets).toEqual([]);
     expect(up.lastFreePack).toBeNull();
+    expect(up.freePlayerUsed).toBe(false);
     expect(up.tix).toBe(40);
   });
 });

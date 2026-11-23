@@ -3,7 +3,7 @@ import { useRouter } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { CompetitorBadge } from '@/components/Badge';
-import { StandCard } from '@/components/cards/StandCard';
+import { AnyCard } from '@/components/cards/CardFaces';
 import { GateCheckCard } from '@/components/GateCheckCard';
 import { MyRankCard } from '@/components/leaderboard/MyRankCard';
 import { Button } from '@/components/ui/Button';
@@ -64,8 +64,7 @@ export default function MeScreen() {
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.follows}>
             {showcase.map((c) => (
               <Pressable key={c.id} onPress={() => router.push({ pathname: '/card/[id]', params: { id: c.id } })} accessibilityRole="button">
-                <StandCard competitorId={c.competitorId} rarity={c.rarity} serial={c.serial} width={104}
-                  finish={c.finish} eventId={c.eventId} favorite={c.favorite} won={c.wonGame} />
+                <AnyCard card={c} width={104} favorite={c.favorite} />
               </Pressable>
             ))}
           </ScrollView>

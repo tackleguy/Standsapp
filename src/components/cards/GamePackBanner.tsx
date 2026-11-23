@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { EventState } from '@/data/types';
 import { gamePackOpen } from '@/logic/packs';
-import { GAME_DAY_WIN_MULTIPLIER, PACK_TYPES } from '@/logic/rules';
+import { PACK_TYPES } from '@/logic/rules';
 import { colors, radius, space, type } from '@/theme/tokens';
 
 import { Icon } from '../ui/Icon';
@@ -21,7 +21,7 @@ export function GamePackBanner({ state, now }: { state: EventState; now: number 
       <PackArt packId="game" width={34} />
       <View style={{ flex: 1 }}>
         <Text style={styles.title}>Game Pack · {pack.size} cards from this game</Text>
-        <Text style={styles.body}>Game Day cards pay {GAME_DAY_WIN_MULTIPLIER}× Tix if their side wins this game.</Text>
+        <Text style={styles.body}>Plays and performances from this game, in their own numbered Game Day run.</Text>
       </View>
       <Text style={styles.price}>{pack.cost} Tix</Text>
       <Icon name="chevron-forward" size={18} color={colors.textDim} />
