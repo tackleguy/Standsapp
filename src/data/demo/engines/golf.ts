@@ -3,9 +3,9 @@ import { formatTime, formatToPar, MINUTE } from '@/lib/format';
 import { createRng } from '@/lib/random';
 
 import type { EntryState, EventMeta, EventState, StatsSection } from '../../types';
-import type { GameStats } from '../players/types';
+import type { GameStats, StatEvent, StatLine } from '../players/types';
 import {
-  cachedScript, disruptedState, nameOf, playsUpTo, preMatchNote, progressAt, sortTimeline, statusAt,
+  cachedScript, disruptedState, impactOf, nameOf, playsUpTo, preMatchNote, progressAt, sortTimeline, statusAt,
   strengthOf, type TimedPlay, emptyGameStats,
 } from './common';
 
@@ -13,6 +13,11 @@ const PARS = [4, 4, 3, 5, 4, 4, 3, 4, 5, 4, 3, 4, 5, 4, 4, 3, 4, 5];
 const HOLE_MS = 13 * MINUTE;
 const GROUP_GAP_MS = 11 * MINUTE;
 const GROUP_SIZE = 3;
+const FINAL_ROUND = 4;
+
+/** Thirds of the round, for the rating breakdown. */
+const ROUND_PARTS = ['Holes 1–6', 'Holes 7–12', 'Holes 13–18'];
+const partOfHole = (hole: number) => Math.min(ROUND_PARTS.length - 1, Math.floor((hole - 1) / 6));
 
 interface HoleResult { at: number; hole: number; toPar: number }
 
@@ -24,6 +29,26 @@ interface GolfScript {
   holes: HoleResult[][]; // per player
   endsAt: number;
   timeline: TimedPlay[];
+  /** What each golfer did, hole by hole (the golfers are the players). */
+  stats: GameStats;
+}
+
+/** The scorecard stat for one hole: an ace on a par 3, eagle, birdie, par, bogey or worse. */
+function holeKind(par: number, toPar: number): 'hio' | 'eag' | 'bird' | 'par' | 'bog' | 'dbl' {
+  if (toPar <= -2) return par === 3 && toPar === -2 ? 'hio' : 'eag';
+  if (toPar === -1) return 'bird';
+  if (toPar === 0) return 'par';
+  return toPar === 1 ? 'bog' : 'dbl';
+}
+
+/** Bonus points for where a golfer finishes the tournament (final round only). */
+function finishBonus(place: number): number {
+  if (place === 1) return 15;
+  if (place === 2) return 10;
+  if (place === 3) return 8;
+  if (place <= 5) return 6;
+  if (place <= 10) return 4;
+  return 0;
 }
 
 function holeScore(rng: ReturnType<typeof createRng>, par: number, skill: number): number {
@@ -70,43 +95,80 @@ function buildScript(meta: EventMeta): GolfScript {
   const contenders = new Set(teeOrder.slice(-12));
   tl.push({ at: meta.startsAt, clock: 'Round start', importance: 1, tag: 'START', competitorId: null,
     description: `Round ${round} is under way at ${meta.venue}. ${nameOf(ids[leader])} starts as the leader at ${formatToPar(prior[leader])}.`,
-    scoreAfter: null });
+    scoreAfter: null, playerIds: [ids[leader]], playerRoles: ['leader'], headline: `Round ${round} under way`, impact: impactOf(1),
+    period: 0 });
   for (const h of all) {
     running[h.p] += h.toPar;
     const who = nameOf(ids[h.p]);
     const clock = `Hole ${h.hole}`;
     const par = PARS[h.hole - 1];
+    const players = { playerIds: [ids[h.p]], period: partOfHole(h.hole) };
+    // Moments late in the round, by players near the top, matter more.
+    const weight = (h.hole / 18) * 0.8 + (running[h.p] - Math.min(...running) <= 2 ? 0.8 : 0);
     if (h.toPar === -2 && par === 3) {
       tl.push({ at: h.at, clock, importance: 3, tag: 'ACE', competitorId: ids[h.p],
-        description: `HOLE-IN-ONE! ${who} aces the par-3 ${h.hole}th!`, scoreAfter: formatToPar(running[h.p]) });
+        description: `HOLE-IN-ONE! ${who} aces the par-3 ${h.hole}th!`, scoreAfter: formatToPar(running[h.p]),
+        ...players, playerRoles: ['hio'], headline: `Hole-in-one on ${h.hole}`, impact: impactOf(9.2 + weight / 2) });
     } else if (h.toPar === -2) {
       tl.push({ at: h.at, clock, importance: 3, tag: 'EAGLE', competitorId: ids[h.p],
-        description: `Eagle! ${who} holes out for a 3 on the par-5 ${h.hole}th.`, scoreAfter: formatToPar(running[h.p]) });
+        description: `Eagle! ${who} holes out for a 3 on the par-5 ${h.hole}th.`, scoreAfter: formatToPar(running[h.p]),
+        ...players, playerRoles: ['eag'], headline: `Eagle on ${h.hole}`, impact: impactOf(6.5 + weight) });
     } else if (h.toPar === -1 && contenders.has(h.p)) {
       tl.push({ at: h.at, clock, importance: 1, tag: 'BIRDIE', competitorId: ids[h.p],
-        description: `Birdie for ${who} at ${h.hole}. Moves to ${formatToPar(running[h.p])}.`, scoreAfter: formatToPar(running[h.p]) });
+        description: `Birdie for ${who} at ${h.hole}. Moves to ${formatToPar(running[h.p])}.`, scoreAfter: formatToPar(running[h.p]),
+        ...players, playerRoles: ['bird'], headline: `Birdie on ${h.hole}`, impact: impactOf(3 + weight) });
     } else if (h.toPar >= 2 && contenders.has(h.p)) {
       tl.push({ at: h.at, clock, importance: 2, tag: 'DOUBLE', competitorId: ids[h.p],
-        description: `Trouble! ${who} makes a double bogey at ${h.hole} and drops to ${formatToPar(running[h.p])}.`, scoreAfter: formatToPar(running[h.p]) });
+        description: `Trouble! ${who} makes a double bogey at ${h.hole} and drops to ${formatToPar(running[h.p])}.`, scoreAfter: formatToPar(running[h.p]),
+        ...players, playerRoles: ['dbl'], headline: `Double bogey on ${h.hole}`, impact: impactOf(3.5 + weight) });
     }
     const best = Math.min(...running);
     if (running[leader] > best) {
       const newLeader = running.indexOf(best);
       if (running.filter((r) => r === best).length === 1) {
         tl.push({ at: h.at + 1, clock, importance: 3, tag: 'LEAD', competitorId: ids[newLeader],
-          description: `${nameOf(ids[newLeader])} takes the outright lead at ${formatToPar(best)}!`, scoreAfter: null });
+          description: `${nameOf(ids[newLeader])} takes the outright lead at ${formatToPar(best)}!`, scoreAfter: null,
+          playerIds: [ids[newLeader]], playerRoles: ['lead'], headline: 'Takes the lead', impact: impactOf(5.5 + h.hole / 9),
+          period: partOfHole(h.hole) });
       }
       leader = newLeader;
     }
   }
   const finalBest = Math.min(...running);
   const winner = running.indexOf(finalBest);
+  const lastPart = ROUND_PARTS.length - 1;
   tl.push({ at: endsAt - 1, clock: 'Final', importance: 3, tag: 'FINAL', competitorId: ids[winner],
     description: round === 4
       ? `${nameOf(ids[winner])} wins the ${meta.title.split('·')[0].trim()} at ${formatToPar(finalBest)}!`
       : `${nameOf(ids[winner])} leads after round ${round} at ${formatToPar(finalBest)}.`,
-    scoreAfter: null });
-  return { round, ids, prior, teeTimes, holes, endsAt, timeline: sortTimeline(tl) };
+    scoreAfter: null, playerIds: [ids[winner]], playerRoles: [round === FINAL_ROUND ? 'win' : 'lead'],
+    headline: round === FINAL_ROUND ? 'Wins the tournament' : `Leads after round ${round}`,
+    impact: impactOf(round === FINAL_ROUND ? 9.8 : 6 + round / 2), period: lastPart });
+
+  // Stats: every hole as it is holed out, scored from the engine's own results,
+  // then each golfer's place once the round is over (the same leaderboard the
+  // results use, ties sharing a place) and, after the final round, a bonus for
+  // where they finished. The winner is the golfer the result names.
+  const events: StatEvent[] = [];
+  holes.forEach((list, p) => list.forEach((h) => {
+    const stats: StatLine = { holes: 1, toPar: h.toPar, [holeKind(PARS[h.hole - 1], h.toPar)]: 1 };
+    events.push({ at: h.at, period: partOfHole(h.hole), playerId: ids[p], stats });
+  }));
+  ids.forEach((id, p) => {
+    const pos = 1 + running.filter((r) => r < running[p]).length;
+    const stats: StatLine = { pos };
+    if (round === FINAL_ROUND) {
+      const bonus = finishBonus(p === winner ? 1 : Math.max(2, pos));
+      if (bonus) stats.finish = bonus;
+    }
+    events.push({ at: endsAt - 1, period: lastPart, playerId: id, stats });
+  });
+  const stats: GameStats = {
+    periods: ROUND_PARTS,
+    lineups: ids.map((id) => ({ competitorId: id, playerIds: [id] })),
+    events: events.sort((a, b) => a.at - b.at),
+  };
+  return { round, ids, prior, teeTimes, holes, endsAt, timeline: sortTimeline(tl), stats };
 }
 
 export function simulateGolf(meta: EventMeta, now: number): EventState {
@@ -156,9 +218,11 @@ export function simulateGolf(meta: EventMeta, now: number): EventState {
 }
 
 /**
- * Per-player stats for one event (the whole game; readers cut it at "now").
- * TODO(players): attribute every stat to roster players. Until then nobody scores.
+ * Per-golfer stats for one round (the whole round; readers cut it at "now"). The
+ * golfers are the players: every hole's score, then their place after the round
+ * and, in the final round, a finishing bonus.
  */
 export function golfGameStats(meta: EventMeta): GameStats {
-  return emptyGameStats(meta);
+  if (meta.disruption) return emptyGameStats(meta);
+  return cachedScript(`golf:${meta.id}`, () => buildScript(meta)).stats;
 }

@@ -3,10 +3,10 @@ import { formatGap, formatLapTime, MINUTE } from '@/lib/format';
 import { createRng } from '@/lib/random';
 
 import type { EntryState, EventMeta, EventState, StatsSection } from '../../types';
-import type { GameStats } from '../players/types';
+import type { GameStats, StatEvent, StatLine } from '../players/types';
 import { competitorById } from '../world';
 import {
-  cachedScript, disruptedState, nameOf, playsUpTo, preMatchNote, progressAt, sortTimeline, statusAt,
+  cachedScript, disruptedState, impactOf, nameOf, playsUpTo, preMatchNote, progressAt, sortTimeline, statusAt,
   strengthOf, type TimedPlay, emptyGameStats,
 } from './common';
 
@@ -40,9 +40,23 @@ interface RaceScript {
   lapEndAt: number[]; // real time each lap completes
   endsAt: number;
   timeline: TimedPlay[];
+  /** What each driver did, lap by lap (the athletes are the players). */
+  stats: GameStats;
 }
 
 type OrderInput = Pick<RaceScript, 'ids' | 'grid' | 'cum' | 'dnfLap'>;
+
+/** Lap numbers that split a race into four stints: [0, 14, 28, 42, 57] for 57 laps. */
+function stintBounds(laps: number): number[] {
+  return [0, 1, 2, 3, 4].map((k) => Math.floor((k * laps) / 4));
+}
+
+/** Which stint a lap belongs to (the start counts as the first stint). */
+function stintOf(bounds: number[], lap: number): number {
+  let k = 0;
+  while (k < bounds.length - 2 && lap > bounds[k + 1]) k++;
+  return k;
+}
 
 /** Running order after `lap` laps: runners by race time, then retirements. */
 function orderAt(s: OrderInput, lap: number): number[] {
@@ -110,70 +124,141 @@ function buildScript(meta: EventMeta): RaceScript {
   const raceStart = meta.startsAt + 2 * MINUTE;
   const lapEndAt = new Array(laps + 1).fill(0).map((_, l) => Math.round(raceStart + l * lapMs));
   const endsAt = lapEndAt[laps] + 2 * MINUTE;
-  const script: RaceScript = { spec, laps, isSprint, ids, grid, cum, pits, pitCount, dnfLap, scLaps, fastest, lapEndAt, endsAt, timeline: [] };
+  const script: RaceScript = { spec, laps, isSprint, ids, grid, cum, pits, pitCount, dnfLap, scLaps, fastest, lapEndAt, endsAt, timeline: [],
+    stats: { periods: [], lineups: [], events: [] } };
+
+  // Player stats are written alongside the commentary, from the same lap data,
+  // so the feed, the classification and every driver's stat line agree.
+  // (No random numbers are drawn for them: the race itself is unchanged.)
+  const bounds = stintBounds(laps);
+  const stint = (lap: number) => stintOf(bounds, lap);
+  const events: StatEvent[] = [];
+  const credit = (at: number, lap: number, d: number, stats: StatLine) => {
+    events.push({ at, period: stint(lap), playerId: ids[d], stats });
+  };
+  const who = (...ds: number[]) => ds.map((d) => ids[d]);
+  const running = (d: number, lap: number) => dnfLap[d] === null || (dnfLap[d] as number) > lap;
 
   const name = (d: number) => nameOf(ids[d]);
   const tl: TimedPlay[] = [];
   tl.push({ at: raceStart, clock: 'Lap 1', importance: 2, tag: 'START', competitorId: ids[grid[0]],
-    description: `Lights out and away we go! ${name(grid[0])} leads into turn 1 from pole.`, scoreAfter: null });
+    description: `Lights out and away we go! ${name(grid[0])} leads into turn 1 from pole.`, scoreAfter: null,
+    playerIds: who(grid[0]), playerRoles: ['pole'], headline: 'Leads from pole', impact: impactOf(3), period: 0 });
+  grid.forEach((d, i) => credit(raceStart, 0, d, { grid: i + 1 }));
   let prev = orderAt(script, 0);
   let bestSoFar = Infinity;
   for (let lap = 1; lap <= laps; lap++) {
     const at = lapEndAt[lap];
     const order = orderAt(script, lap);
     const clock = `Lap ${lap}/${laps}`;
+    const period = stint(lap);
     if (order[0] !== prev[0]) {
       tl.push({ at, clock, importance: 3, tag: 'LEAD', competitorId: ids[order[0]],
-        description: `${name(order[0])} takes the lead from ${name(prev[0])}!`, scoreAfter: null });
+        description: `${name(order[0])} takes the lead from ${name(prev[0])}!`, scoreAfter: null,
+        playerIds: who(order[0], prev[0]), playerRoles: ['lead', 'passed'], headline: 'Takes the lead',
+        impact: impactOf(6 + (2.5 * lap) / laps), period });
     }
     let overtakes = 0;
+    const calledPass = new Set<number>();
     for (let p = 1; p < Math.min(8, order.length) && overtakes < 2; p++) {
       const d = order[p];
       const was = prev.indexOf(d);
       if (was > p && !pits.has(`${prev[p]}:${lap}`) && cum[d][lap] !== Infinity) {
         tl.push({ at: at - 5000, clock, importance: p <= 3 ? 2 : 1, tag: 'OVERTAKE', competitorId: ids[d],
-          description: `${name(d)} passes ${name(prev[p])} for P${p + 1}.`, scoreAfter: null });
+          description: `${name(d)} passes ${name(prev[p])} for P${p + 1}.`, scoreAfter: null,
+          playerIds: who(d, prev[p]), playerRoles: ['ot', 'passed'], headline: `Overtake for P${p + 1}`,
+          impact: impactOf(5.6 - p * 0.45), period });
+        calledPass.add(d);
         overtakes++;
       }
+    }
+    // Overtakes for the whole field: every running car that ended the lap ahead of
+    // a car it was behind, when that car neither pitted nor retired this lap. A pass
+    // the commentary called always counts, so the feed and the stats agree.
+    const posNow = new Array<number>(ids.length);
+    order.forEach((d, i) => { posNow[d] = i; });
+    for (const d of order) {
+      let passed = 0;
+      if (running(d, lap) && !pits.has(`${d}:${lap}`)) {
+        const wasAt = prev.indexOf(d);
+        for (let q = 0; q < wasAt; q++) {
+          const b = prev[q];
+          if (posNow[b] > posNow[d] && running(b, lap) && !pits.has(`${b}:${lap}`)) passed++;
+        }
+      }
+      const ot = Math.max(passed, calledPass.has(d) ? 1 : 0);
+      if (ot > 0) credit(at - 5000, lap, d, { ot });
     }
     for (let d = 0; d < ids.length; d++) {
       if (pits.has(`${d}:${lap}`)) {
         tl.push({ at: at - 20_000, clock, importance: 1, tag: 'PIT', competitorId: ids[d],
-          description: `${name(d)} pits from P${prev.indexOf(d) + 1} — ${rng.pick(TYRES)} tyres fitted.`, scoreAfter: null });
+          description: `${name(d)} pits from P${prev.indexOf(d) + 1} — ${rng.pick(TYRES)} tyres fitted.`, scoreAfter: null,
+          playerIds: who(d), playerRoles: ['pit'], headline: 'Pit stop', impact: impactOf(1.5), period });
+        credit(at - 20_000, lap, d, { pit: 1 });
       }
       if (dnfLap[d] === lap) {
         tl.push({ at: at - 30_000, clock, importance: 3, tag: 'DNF', competitorId: ids[d],
-          description: `${name(d)} is out! ${rng.pick(DNF_REASONS)}`, scoreAfter: null });
+          description: `${name(d)} is out! ${rng.pick(DNF_REASONS)}`, scoreAfter: null,
+          playerIds: who(d), playerRoles: ['dnf'], headline: 'Retires', impact: impactOf(7 - prev.indexOf(d) * 0.25), period });
+        credit(at - 30_000, lap, d, { dnf: 1 });
       }
     }
     if (scLaps.has(lap) && !scLaps.has(lap - 1)) {
       tl.push({ at: lapEndAt[lap - 1] + 15_000, clock, importance: 3, tag: 'SC', competitorId: null,
-        description: 'SAFETY CAR deployed! The field bunches up.', scoreAfter: null });
+        description: 'SAFETY CAR deployed! The field bunches up.', scoreAfter: null, period });
     }
     if (!scLaps.has(lap) && scLaps.has(lap - 1)) {
       tl.push({ at: lapEndAt[lap - 1] + 5_000, clock, importance: 2, tag: 'RESTART', competitorId: ids[order[0]],
-        description: `Safety car in. ${name(order[0])} controls the restart.`, scoreAfter: null });
+        description: `Safety car in. ${name(order[0])} controls the restart.`, scoreAfter: null,
+        playerIds: who(order[0]), playerRoles: ['lead'], headline: 'Leads the restart', impact: impactOf(3), period });
     }
     const lapBest = ids.map((_, d) => (cum[d][lap] === Infinity || pits.has(`${d}:${lap}`) ? Infinity : cum[d][lap] - cum[d][lap - 1]));
     const minIdx = lapBest.indexOf(Math.min(...lapBest));
     if (lap > 2 && !scLaps.has(lap) && lapBest[minIdx] < bestSoFar && order.indexOf(minIdx) < 6) {
       bestSoFar = lapBest[minIdx];
       tl.push({ at: at - 2_000, clock, importance: 1, tag: 'FASTEST', competitorId: ids[minIdx],
-        description: `Fastest lap: ${name(minIdx)} with a ${formatLapTime(lapBest[minIdx])}.`, scoreAfter: null });
+        description: `Fastest lap: ${name(minIdx)} with a ${formatLapTime(lapBest[minIdx])}.`, scoreAfter: null,
+        playerIds: who(minIdx), playerRoles: ['fl'], headline: 'Fastest lap', impact: impactOf(2.5), period });
     }
     if (lap === laps - 1) {
       const gap = cum[order[1]][lap] - cum[order[0]][lap];
       tl.push({ at: at + 1000, clock: `Lap ${laps}/${laps}`, importance: 2, tag: 'FINAL_LAP', competitorId: ids[order[0]],
-        description: `Final lap! ${name(order[0])} leads ${name(order[1])} by ${gap.toFixed(1)}s.`, scoreAfter: null });
+        description: `Final lap! ${name(order[0])} leads ${name(order[1])} by ${gap.toFixed(1)}s.`, scoreAfter: null,
+        playerIds: who(order[0], order[1]), playerRoles: ['lead', 'chase'], headline: 'Final lap', impact: impactOf(4),
+        period: stint(laps) });
     }
+    if (running(order[0], lap)) credit(at, lap, order[0], { led: 1 });
     prev = order;
   }
   const finalOrder = orderAt(script, laps);
+  const lastStint = stint(laps);
   tl.push({ at: lapEndAt[laps], clock: 'Finish', importance: 3, tag: 'FINAL', competitorId: ids[finalOrder[0]],
-    description: `CHEQUERED FLAG! ${name(finalOrder[0])} wins the ${meta.title}!`, scoreAfter: null });
+    description: `CHEQUERED FLAG! ${name(finalOrder[0])} wins the ${meta.title}!`, scoreAfter: null,
+    playerIds: who(finalOrder[0]), playerRoles: ['win'], headline: isSprint ? 'Wins the sprint' : 'Wins the race',
+    impact: impactOf(9.5), period: lastStint });
   tl.push({ at: lapEndAt[laps] + 30_000, clock: 'Podium', importance: 2, tag: 'PODIUM', competitorId: null,
-    description: `Podium: 1. ${name(finalOrder[0])}  2. ${name(finalOrder[1])}  3. ${name(finalOrder[2])}`, scoreAfter: null });
+    description: `Podium: 1. ${name(finalOrder[0])}  2. ${name(finalOrder[1])}  3. ${name(finalOrder[2])}`, scoreAfter: null,
+    playerIds: who(...finalOrder.slice(0, 3)), playerRoles: ['p1', 'p2', 'p3'], headline: 'Podium', impact: impactOf(6),
+    period: lastStint });
   script.timeline = sortTimeline(tl);
+
+  // The classification at the flag: position, places gained from the grid and
+  // championship points (the same table the results use). Retired drivers have
+  // already been credited with their DNF, so they get no position or points.
+  const points = isSprint ? spec.sprintPoints : spec.points;
+  finalOrder.forEach((d, i) => {
+    const fl: StatLine | null = script.fastest?.d === d ? { fl: 1 } : null;
+    if (!running(d, laps)) {
+      if (fl) credit(lapEndAt[laps], laps, d, fl);
+      return;
+    }
+    credit(lapEndAt[laps], laps, d, { pos: i + 1, gained: grid.indexOf(d) - i, ...(points[i] ? { pts: points[i] } : null), ...fl });
+  });
+  script.stats = {
+    periods: bounds.slice(0, -1).map((b, k) => `L${b + 1}–${bounds[k + 1]}`),
+    lineups: ids.map((id) => ({ competitorId: id, playerIds: [id] })),
+    events: events.sort((a, b) => a.at - b.at),
+  };
   return script;
 }
 
@@ -364,9 +449,11 @@ export function raceOrderNow(meta: EventMeta, now: number): string[] {
 }
 
 /**
- * Per-player stats for one event (the whole game; readers cut it at "now").
- * TODO(players): attribute every stat to roster players. Until then nobody scores.
+ * Per-driver stats for one race (the whole race; readers cut it at "now"). The
+ * drivers are the players: grid slot, overtakes, laps led, pit stops, retirements,
+ * then the finishing position, places gained, championship points and fastest lap.
  */
 export function raceGameStats(meta: EventMeta): GameStats {
-  return emptyGameStats(meta);
+  if (meta.disruption) return emptyGameStats(meta);
+  return cachedScript(`race:${meta.id}`, () => buildScript(meta)).stats;
 }
