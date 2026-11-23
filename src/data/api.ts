@@ -157,3 +157,22 @@ export {
 } from './demo/season';
 export type { ChampionshipRow, FightRecord, Meeting, Result, StandingsKind, TeamRow } from './demo/season';
 export { chattersFor, crowdLabel, watchersFor } from './demo/crowd';
+
+// --- Event screen (fork C) ---
+export { crowdPick, eventWinProbability, redCardsFor, scorersFor, winProbabilitySeries } from './demo/liveExtras';
+export type { Scorer, WinMarker, WinPoint } from './demo/liveExtras';
+export { liveClock } from './demo/engines';
+
+/**
+ * Games that matter to this fan right now — a followed team (or a followed
+ * team's driver) is playing, or they have an open Call on it — for live alerts.
+ */
+export function getAlertCandidates(now: number, followed: string[], callEventIds: string[]): EventState[] {
+  if (followed.length === 0 && callEventIds.length === 0) return [];
+  const follow = new Set(followed);
+  const calls = new Set(callEventIds);
+  return eventsBetween(now - 8 * HOUR, now + 60_000)
+    .filter((m) => !m.disruption && (calls.has(m.id) || m.competitorIds.some((id) => follow.has(id) || follow.has(competitorById(id)?.parentId ?? ''))))
+    .map((m) => simulate(m, now))
+    .filter((s) => s.status === 'live' || (s.status === 'finished' && now - s.endsAt < 3 * 60_000));
+}

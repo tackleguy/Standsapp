@@ -6,7 +6,7 @@ import { simulateCombat } from './combat';
 import { simulateCricket } from './cricket';
 import { simulateCycling } from './cycling';
 import { simulateGolf } from './golf';
-import { simulateH2H } from './h2h';
+import { h2hClock, simulateH2H } from './h2h';
 import { simulateRace } from './race';
 import { simulateTennis } from './tennis';
 
@@ -26,4 +26,19 @@ export function simulate(meta: EventMeta, now: number): EventState {
 /** The finished state: used to settle Calls. */
 export function finalState(meta: EventMeta): EventState {
   return simulate(meta, Number.MAX_SAFE_INTEGER);
+}
+
+/**
+ * The game clock right now, for scoreboards that tick every second between data
+ * refreshes. Always the engine's own clock, never an invented one. Null when the
+ * sport has no running clock (the period label is used instead).
+ */
+export function liveClock(meta: EventMeta, now: number): string | null {
+  const engine = planFor(meta.sportId)?.engine;
+  if (engine === 'h2h') return h2hClock(meta, now);
+  if (engine === 'combat') {
+    const s = simulateCombat(meta, now);
+    return s.status === 'live' ? s.periodLabel : null;
+  }
+  return null;
 }

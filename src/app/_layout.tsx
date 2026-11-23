@@ -10,6 +10,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { ToastHost } from '@/components/ui/ToastHost';
 import { useHydrated } from '@/hooks/useHydrated';
+import { useLiveAlerts } from '@/hooks/useLiveAlerts';
 import { useSettlementLoop } from '@/hooks/useSettlementLoop';
 import { useUserStore } from '@/store/user';
 import { colors, fonts } from '@/theme/tokens';
@@ -35,6 +36,7 @@ export default function RootLayout() {
   const ready = hydrated && (fontsLoaded || !!fontError);
   const onboarded = useUserStore((s) => s.onboarded);
   useSettlementLoop(hydrated && onboarded);
+  useLiveAlerts(hydrated && onboarded);
 
   return (
     <QueryClientProvider client={queryClient}>
