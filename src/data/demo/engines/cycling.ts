@@ -3,10 +3,10 @@ import { MINUTE } from '@/lib/format';
 import { createRng } from '@/lib/random';
 
 import type { EntryState, EventMeta, EventState, StatsSection } from '../../types';
-import type { GameStats } from '../players/types';
+import type { GameStats, StatEvent, StatLine } from '../players/types';
 import { competitorById } from '../world';
 import {
-  cachedScript, disruptedState, mmss, nameOf, playsUpTo, preMatchNote, progressAt, sortTimeline, statusAt,
+  cachedScript, disruptedState, impactOf, mmss, nameOf, playsUpTo, preMatchNote, progressAt, sortTimeline, statusAt,
   strengthOf, type TimedPlay, emptyGameStats,
 } from './common';
 
@@ -23,6 +23,30 @@ interface CyclingScript {
   finish: { d: number; gapSec: number }[];
   endsAt: number;
   timeline: TimedPlay[];
+  /** What each rider did (the riders are the players). */
+  stats: GameStats;
+}
+
+/** Where each part of the stage starts, as a share of the distance. */
+const STAGE_PARTS = [0, 0.3, 0.6, 0.88];
+/** Stage points for the top 10 at the finish. */
+const STAGE_POINTS = [25, 20, 16, 14, 12, 10, 8, 6, 4, 2];
+/** Intermediate sprint points, in the order the break crosses the line. */
+const SPRINT_POINTS = [20, 17, 15, 13, 11, 10];
+/** Mountain points for each climb, in the order riders crest it. */
+const CLIMB_POINTS: Record<Exclude<Profile, 'flat'>, number[][]> = {
+  hilly: [[5, 3, 2, 1], [5, 3, 2, 1]],
+  mountain: [[10, 8, 6, 4, 2, 1], [20, 15, 12, 10, 8, 6]],
+};
+
+function partNames(profile: Profile): string[] {
+  return ['Start', 'Middle', profile === 'mountain' ? 'Climbs' : profile === 'hilly' ? 'Hills' : 'Run-in', 'Finale'];
+}
+
+function partAtKm(distance: number, km: number): number {
+  let k = 0;
+  while (k < STAGE_PARTS.length - 1 && km >= STAGE_PARTS[k + 1] * distance) k++;
+  return k;
 }
 
 function kmAt(meta: EventMeta, s: CyclingScript, now: number): number {
@@ -82,47 +106,88 @@ function buildScript(meta: EventMeta): CyclingScript {
   const name = (d: number) => nameOf(ids[d]);
   const tl: TimedPlay[] = [];
   const kmLabel = (km: number) => `${Math.round(distance - km)} km to go`;
+
+  // Rider stats are written next to the commentary, from the same decisions, so
+  // the feed, the result and every rider's stat line agree. (No random numbers
+  // are drawn for them: the stage itself is unchanged.)
+  const events: StatEvent[] = [];
+  const part = (km: number) => partAtKm(distance, km);
+  const credit = (km: number, d: number, stats: StatLine) => {
+    events.push({ at: timeAtKm(meta, base, km), period: part(km), playerId: ids[d], stats });
+  };
+  const who = (...ds: number[]) => ds.map((d) => ids[d]);
+  // When the commentary names only the first rider over a line, the rest of the
+  // break follows in order of strength.
+  const breakBehind = (first: number) => [first, ...breakaway.filter((d) => d !== first)
+    .sort((a, b) => strengths[b] - strengths[a] || a - b)];
+
   tl.push({ at: meta.startsAt, clock: '0 km', importance: 1, tag: 'START', competitorId: null,
-    description: `The flag drops! ${distance} km of ${profile} racing ahead on ${meta.title.replace(/^Stage \d+: /, '')}.`, scoreAfter: null });
+    description: `The flag drops! ${distance} km of ${profile} racing ahead on ${meta.title.replace(/^Stage \d+: /, '')}.`, scoreAfter: null,
+    period: 0 });
   tl.push({ at: timeAtKm(meta, base, breakFormsKm), clock: kmLabel(breakFormsKm), importance: 2, tag: 'BREAK', competitorId: null,
-    description: `A break of ${breakSize} goes clear: ${breakaway.map(name).join(', ')}.`, scoreAfter: null });
+    description: `A break of ${breakSize} goes clear: ${breakaway.map(name).join(', ')}.`, scoreAfter: null,
+    playerIds: who(...breakaway), playerRoles: breakaway.map(() => 'bk'), headline: 'Joins the break', impact: impactOf(4),
+    period: part(breakFormsKm) });
+  breakaway.forEach((d) => credit(breakFormsKm, d, { bk: 1 }));
   const partial = { ...base, breakFormsKm, catchKm, maxGapSec } as CyclingScript;
   for (let km = 30; km < (catchKm ?? distance) - 10; km += 30) {
     tl.push({ at: timeAtKm(meta, base, km), clock: kmLabel(km), importance: 1, tag: 'GAP', competitorId: null,
-      description: `Time check: the break leads the peloton by ${mmss(gapAt(partial, km) / 60)}.`, scoreAfter: null });
+      description: `Time check: the break leads the peloton by ${mmss(gapAt(partial, km) / 60)}.`, scoreAfter: null, period: part(km) });
   }
   const sprintKm = Math.round(distance * 0.55);
   tl.push({ at: timeAtKm(meta, base, sprintKm), clock: kmLabel(sprintKm), importance: 1, tag: 'SPRINT', competitorId: ids[breakaway[0]],
-    description: `${name(breakaway[0])} takes the intermediate sprint points.`, scoreAfter: null });
+    description: `${name(breakaway[0])} takes the intermediate sprint points.`, scoreAfter: null,
+    playerIds: who(breakaway[0]), playerRoles: ['spr'], headline: 'Wins the intermediate sprint', impact: impactOf(3),
+    period: part(sprintKm) });
+  breakBehind(breakaway[0]).forEach((d, i) => { if (SPRINT_POINTS[i]) credit(sprintKm, d, { spr: SPRINT_POINTS[i] }); });
   if (profile !== 'flat') {
-    [0.3, 0.7].forEach((f) => {
+    [0.3, 0.7].forEach((f, climb) => {
       const km = Math.round(distance * f);
       const d = rng.pick(breakaway);
+      const climbPoints = CLIMB_POINTS[profile][climb];
       tl.push({ at: timeAtKm(meta, base, km), clock: kmLabel(km), importance: 1, tag: 'KOM', competitorId: ids[d],
-        description: `${name(d)} crests the climb first and collects mountain points.`, scoreAfter: null });
+        description: `${name(d)} crests the climb first and collects mountain points.`, scoreAfter: null,
+        playerIds: who(d), playerRoles: ['kom'], headline: 'First over the climb', impact: impactOf(2.5 + climbPoints[0] / 10),
+        period: part(km) });
+      breakBehind(d).forEach((r, i) => { if (climbPoints[i]) credit(km, r, { kom: climbPoints[i] }); });
     });
   }
   if (rng.chance(0.35)) {
     const km = rng.int(40, distance - 20);
     const d = rng.int(0, ids.length - 1);
     tl.push({ at: timeAtKm(meta, base, km), clock: kmLabel(km), importance: 2, tag: 'CRASH', competitorId: ids[d],
-      description: `Crash in the peloton! ${name(d)} goes down but is back on the bike.`, scoreAfter: null });
+      description: `Crash in the peloton! ${name(d)} goes down but is back on the bike.`, scoreAfter: null,
+      playerIds: who(d), playerRoles: ['crash'], headline: 'Crashes', impact: impactOf(3), period: part(km) });
   }
   if (catchKm !== null) {
     tl.push({ at: timeAtKm(meta, base, catchKm), clock: kmLabel(catchKm), importance: 3, tag: 'CATCH', competitorId: null,
-      description: `The break is caught with ${Math.round(distance - catchKm)} km to go! All together.`, scoreAfter: null });
+      description: `The break is caught with ${Math.round(distance - catchKm)} km to go! All together.`, scoreAfter: null,
+      playerIds: who(...breakaway), playerRoles: breakaway.map(() => 'caught'), headline: 'Break caught', impact: impactOf(5),
+      period: part(catchKm) });
   }
   const attacker = finishOrder[Math.min(1, finishOrder.length - 1)].d;
-  tl.push({ at: timeAtKm(meta, base, distance - 6), clock: kmLabel(distance - 6), importance: 2, tag: 'ATTACK', competitorId: ids[attacker],
-    description: profile === 'flat' ? 'The sprint trains are lining up at the front.' : `${name(attacker)} attacks on the final rise!`, scoreAfter: null });
+  const attackKm = distance - 6;
+  tl.push({ at: timeAtKm(meta, base, attackKm), clock: kmLabel(attackKm), importance: 2, tag: 'ATTACK', competitorId: ids[attacker],
+    description: profile === 'flat' ? 'The sprint trains are lining up at the front.' : `${name(attacker)} attacks on the final rise!`, scoreAfter: null,
+    ...(profile === 'flat' ? null : { playerIds: who(attacker), playerRoles: ['att'], headline: 'Attacks', impact: impactOf(5.5) }),
+    period: part(attackKm) });
+  if (profile !== 'flat') credit(attackKm, attacker, { att: 1 });
   tl.push({ at: timeAtKm(meta, base, distance - 1), clock: '1 km to go', importance: 2, tag: 'FLAMME', competitorId: null,
-    description: 'Under the flamme rouge — one kilometre to go!', scoreAfter: null });
+    description: 'Under the flamme rouge — one kilometre to go!', scoreAfter: null, period: part(distance - 1) });
   const winner = finishOrder[0].d;
   const endsAt = meta.startsAt + rideMs + 3 * MINUTE;
   tl.push({ at: meta.startsAt + rideMs, clock: 'Finish', importance: 3, tag: 'FINAL', competitorId: ids[winner],
     description: `${name(winner)} wins ${meta.title.split(':')[0]}! ${profile === 'flat' && catchKm !== null ? 'A blistering sprint.' : 'A superb ride.'}`,
-    scoreAfter: null });
-  return { distance, profile, rideMs, breakaway, breakFormsKm, catchKm, maxGapSec, finish: finishOrder, endsAt, timeline: sortTimeline(tl) };
+    scoreAfter: null, playerIds: who(winner), playerRoles: ['win'], headline: 'Wins the stage', impact: impactOf(9.5),
+    period: part(distance) });
+  // The stage result: every rider's place, and stage points for the top 10.
+  finishOrder.forEach(({ d }, i) => credit(distance, d, { pos: i + 1, ...(STAGE_POINTS[i] ? { stagePts: STAGE_POINTS[i] } : null) }));
+  const stats: GameStats = {
+    periods: partNames(profile),
+    lineups: ids.map((id) => ({ competitorId: id, playerIds: [id] })),
+    events: events.sort((a, b) => a.at - b.at),
+  };
+  return { distance, profile, rideMs, breakaway, breakFormsKm, catchKm, maxGapSec, finish: finishOrder, endsAt, timeline: sortTimeline(tl), stats };
 }
 
 function fmtGap(sec: number): string {
@@ -184,9 +249,11 @@ export function simulateCycling(meta: EventMeta, now: number): EventState {
 }
 
 /**
- * Per-player stats for one event (the whole game; readers cut it at "now").
- * TODO(players): attribute every stat to roster players. Until then nobody scores.
+ * Per-rider stats for one stage (the whole stage; readers cut it at "now"). The
+ * riders are the players: joining the break, sprint and mountain points, attacks,
+ * then the finishing place and stage points.
  */
 export function cyclingGameStats(meta: EventMeta): GameStats {
-  return emptyGameStats(meta);
+  if (meta.disruption) return emptyGameStats(meta);
+  return cachedScript(`cycling:${meta.id}`, () => buildScript(meta)).stats;
 }

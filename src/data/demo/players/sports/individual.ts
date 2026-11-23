@@ -7,13 +7,24 @@ const signed = (v: number) => (v > 0 ? `+${v}` : String(v));
 const finish = (l: StatLine) => (n(l, 'pos') ? `P${n(l, 'pos')}` : null);
 
 function racing(sportId: string, pos: string, label: string): SportStatsDef {
+  // Championship points count in full where a win pays 25 (F1, MotoGP) and at
+  // 0.4 in IndyCar, whose table pays 50 for a win and points deep into the field,
+  // so a win is worth about the same in every series. Leading every lap is worth
+  // about 5 points whatever the race distance; IndyCar's longer races have more
+  // overtakes, so each counts a little less.
+  const fantasy: Record<string, number> = sportId === 'indycar'
+    ? { pts: 0.4, gained: 0.5, ot: 0.3, led: 0.06, fl: 3, dnf: -5 }
+    : sportId === 'motogp'
+      ? { pts: 1, gained: 0.5, ot: 0.5, led: 0.2, fl: 3, dnf: -5 }
+      : { pts: 1, gained: 0.5, ot: 0.5, led: 0.1, fl: 3, dnf: -5 };
+  const overtakes = (v: number) => (v ? `${v} overtake${v === 1 ? '' : 's'}` : null);
   return {
     sportId,
     positions: [],
     athletePos: { pos, label },
     labels: { grid: 'GRID', pos: 'POS', gained: '+/-', ot: 'OVT', led: 'LED', fl: 'FL', dnf: 'DNF', pts: 'PTS', pit: 'PIT' },
-    fantasy: { pts: 1, gained: 0.5, ot: 0.5, led: 0.1, fl: 3, dnf: -5 },
-    headline: (l) => join([n(l, 'dnf') ? 'DNF' : finish(l), n(l, 'grid') ? `from P${n(l, 'grid')}` : null, n(l, 'pts') ? `${n(l, 'pts')} pts` : null, n(l, 'ot') ? `${n(l, 'ot')} overtakes` : null]),
+    fantasy,
+    headline: (l) => join([n(l, 'dnf') ? 'DNF' : finish(l), n(l, 'grid') ? `from P${n(l, 'grid')}` : null, n(l, 'pts') ? `${n(l, 'pts')} pts` : null, overtakes(n(l, 'ot'))]),
     feedLine: (l) => join([n(l, 'dnf') ? 'DNF' : finish(l) ?? `from P${n(l, 'grid')}`, n(l, 'ot') ? `${n(l, 'ot')} OVT` : null], ', '),
     grid: () => [[stat('grid', 'GRID'), cell('FINISH', (l) => (n(l, 'dnf') ? 'DNF' : finish(l) ?? '–')), cell('+/-', (l) => signed(n(l, 'gained'))), stat('ot', 'OVT'), stat('led', 'LED'), stat('fl', 'FL'), stat('pts', 'PTS')]],
   };
@@ -28,8 +39,10 @@ export const cycling: SportStatsDef = {
   positions: [],
   athletePos: { pos: 'Rider', label: 'Rider' },
   labels: { pos: 'POS', stagePts: 'PTS', bk: 'BREAK', kom: 'KOM', spr: 'SPRINT', att: 'ATT', dnf: 'DNF' },
-  fantasy: { stagePts: 1, bk: 5, kom: 0.5, spr: 0.5, att: 1, dnf: -5 },
-  headline: (l) => join([n(l, 'dnf') ? 'DNF' : finish(l), n(l, 'bk') ? 'in the break' : null, n(l, 'kom') ? `${n(l, 'kom')} KOM pts` : null, n(l, 'att') ? `${n(l, 'att')} attacks` : null]),
+  // A stage win (25) is the big prize; a day in the break with sprint and
+  // mountain points is worth roughly 10-20, so the break alone does not beat it.
+  fantasy: { stagePts: 1, bk: 3, kom: 0.4, spr: 0.25, att: 2, dnf: -5 },
+  headline: (l) => join([n(l, 'dnf') ? 'DNF' : finish(l), n(l, 'bk') ? 'in the break' : null, n(l, 'kom') ? `${n(l, 'kom')} KOM pts` : null, n(l, 'att') ? `${n(l, 'att')} attack${n(l, 'att') === 1 ? '' : 's'}` : null]),
   feedLine: (l) => join([n(l, 'dnf') ? 'DNF' : finish(l), n(l, 'att') ? `${n(l, 'att')} ATT` : null, n(l, 'kom') ? `${n(l, 'kom')} KOM` : null], ', ') || 'in the bunch',
   grid: () => [[cell('FINISH', (l) => (n(l, 'dnf') ? 'DNF' : finish(l) ?? '–')), stat('stagePts', 'PTS'), stat('att', 'ATT'), stat('kom', 'KOM'), stat('spr', 'SPRINT'), cell('BREAK', (l) => (n(l, 'bk') ? 'Yes' : 'No'))]],
 };
@@ -39,8 +52,18 @@ export const golf: SportStatsDef = {
   positions: [],
   athletePos: { pos: 'Golfer', label: 'Golfer' },
   labels: { holes: 'HOLES', toPar: 'PAR', par: 'PARS', bird: 'BIRD', eag: 'EAGLE', bog: 'BOG', dbl: 'DBL+', hio: 'ACE', finish: 'FIN', pos: 'POS' },
-  fantasy: { par: 0.5, bird: 3, eag: 8, bog: -0.5, dbl: -1, hio: 10, finish: 1 },
-  headline: (l) => join([toPar(n(l, 'toPar')), n(l, 'holes') && n(l, 'holes') < 18 ? `thru ${n(l, 'holes')}` : `(${72 + n(l, 'toPar')})`, `${n(l, 'bird') + n(l, 'eag')} birdies`, n(l, 'pos') ? `T${n(l, 'pos')}` : null]),
+  // Pars are the baseline. An ordinary round (a few birdies, a few bogeys) is
+  // worth a handful of points, a low round 20 or more, and after the final round
+  // the finishing bonus is added on top.
+  fantasy: { bird: 2.5, eag: 6, bog: -1, dbl: -2, hio: 10, finish: 1 },
+  headline: (l) => {
+    const holes = n(l, 'holes');
+    const under = n(l, 'bird') + n(l, 'eag') + n(l, 'hio');
+    const place = n(l, 'pos');
+    const suffix = [11, 12, 13].includes(place % 100) ? 'th' : ['th', 'st', 'nd', 'rd'][place % 10] ?? 'th';
+    return join([toPar(n(l, 'toPar')), holes > 0 && holes < 18 ? `thru ${holes}` : holes === 18 ? `(${72 + n(l, 'toPar')})` : null,
+      `${under} birdie${under === 1 ? '' : 's'}`, place ? `${place}${suffix}` : null]);
+  },
   feedLine: (l) => `${toPar(n(l, 'toPar'))} thru ${n(l, 'holes')}`,
   grid: () => [
     [cell('SCORE', (l) => toPar(n(l, 'toPar'))), stat('holes', 'HOLES'), stat('bird', 'BIRD'), stat('eag', 'EAGLE'), stat('par', 'PARS')],
