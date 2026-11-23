@@ -74,7 +74,7 @@ function Status({ event }: { event: CardEvent }) {
   const warn = event.status === 'postponed' || event.status === 'cancelled';
   return (
     <Text style={[styles.statusText, event.status === 'finished' && styles.statusFinal, warn && { color: colors.accent }]} numberOfLines={1}>
-      {event.status === 'finished' ? 'FT' : statusLabel(event)}
+      {statusLabel(event)}
     </Text>
   );
 }
