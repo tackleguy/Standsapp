@@ -63,7 +63,7 @@ export default function EventScreen() {
     { value: 'calls', label: 'Calls', badge: myCalls || undefined },
     ...(scheduled ? [] : [{ value: 'stats' as Tab, label: 'Stats' }]),
     // A tab per team in team sports (like "NE" and "SEA"), or one for the whole field.
-    ...(scheduled ? [] : teamSides
+    ...(scheduled || state.status === 'cancelled' || state.status === 'postponed' ? [] : teamSides
       ? state.meta.competitorIds.map((cid) => ({ value: `side:${cid}` as Tab, label: competitorById(cid)?.shortName ?? 'Team' }))
       : [{ value: 'players' as Tab, label: fieldLabel(state.meta.sportId) }]),
   ];
