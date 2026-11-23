@@ -42,7 +42,7 @@ export default function SectionScreen() {
       <Header title={section.name} subtitle={`${sportById(section.sportId)?.name} · code ${section.inviteCode}`} back
         right={<IconButton icon="share-social-outline" label="Share invite code" onPress={share} />} />
       <View style={styles.tabs}>
-        <Segmented value={tab} onChange={setTab} options={[{ value: 'chat', label: 'Chat' }, { value: 'board', label: 'This week' }, { value: 'about', label: 'About' }]} />
+        <Segmented value={tab} onChange={setTab} options={[{ value: 'chat', label: 'Chat' }, { value: 'board', label: 'Leaderboard' }, { value: 'about', label: 'About' }]} />
       </View>
       {tab === 'chat' && (isMember ? (
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90}>

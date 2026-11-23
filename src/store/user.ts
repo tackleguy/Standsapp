@@ -63,6 +63,8 @@ interface UserState {
   onboarded: boolean;
   followedSports: string[];
   followedCompetitors: string[];
+  /** Other fans you follow, for the Following leaderboard. */
+  followedFans: string[];
   clout: number;
   tix: number;
   streakDays: number;
@@ -87,6 +89,7 @@ interface UserState {
   setFollowedSports: (ids: string[]) => void;
   toggleSport: (id: string) => void;
   toggleCompetitor: (id: string) => void;
+  toggleFan: (id: string) => void;
   createAccount: (input: { username: string; displayName: string; birthYear: number; email: string }) => string | null;
   updateProfile: (input: { username: string; displayName: string }) => string | null;
   gateCheck: (now: number) => { clout: number; tix: number; streakDays: number } | { error: string };
@@ -120,6 +123,7 @@ function initialData() {
     onboarded: false,
     followedSports: [] as string[],
     followedCompetitors: [] as string[],
+    followedFans: [] as string[],
     clout: WELCOME_CLOUT,
     tix: WELCOME_TIX,
     streakDays: 0,
@@ -168,6 +172,10 @@ export const useUserStore = create<UserState>()(
       toggleCompetitor: (id) => {
         const cur = get().followedCompetitors;
         set({ followedCompetitors: cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id] });
+      },
+      toggleFan: (id) => {
+        const cur = get().followedFans ?? [];
+        set({ followedFans: cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id] });
       },
 
       createAccount: ({ username, displayName, birthYear, email }) => {
