@@ -1,4 +1,5 @@
-// Builds the Today list: Live, Starting soon, Later today, Final — followed teams first.
+// Builds the Today list: featured big games, Live, Starting soon, Later today, Final —
+// followed teams first.
 import { useMemo } from 'react';
 
 import type { CardEvent } from '@/components/event/ScoreCard';
@@ -40,12 +41,24 @@ export function useTodayFeed(dayStart: number, sportId: string, liveOnly: boolea
     const final = filtered.filter((s) => s.status === 'finished' || s.status === 'postponed' || s.status === 'cancelled')
       .sort((a, b) => rank(a) - rank(b) || b.meta.startsAt - a.meta.startsAt);
 
+    const cards = new Map<string, CardEvent>();
+    const card = (s: EventState) => {
+      let c = cards.get(s.meta.id);
+      if (!c) { c = toCardEvent(s, followed, now); cards.set(s.meta.id, c); }
+      return c;
+    };
+    // The biggest crowds right now (followed teams first) get the hero treatment.
+    const featured = live.map(card)
+      .sort((a, b) => Number(b.followed) - Number(a.followed) || (b.watchers ?? 0) - (a.watchers ?? 0))
+      .slice(0, 5);
+    const strip = live.map(card);
+
     const items: FeedItem[] = [];
     const push = (title: string, list: EventState[], opts: { live?: boolean; cap?: number } = {}) => {
       if (list.length === 0) return;
       items.push({ kind: 'heading', key: `h-${title}`, title, count: list.length, live: opts.live });
       const shown = opts.cap && !showAllFinals ? list.slice(0, opts.cap) : list;
-      for (const s of shown) items.push({ kind: 'event', key: s.meta.id, event: toCardEvent(s, followed), sportId: s.meta.sportId });
+      for (const s of shown) items.push({ kind: 'event', key: s.meta.id, event: card(s), sportId: s.meta.sportId });
       if (shown.length < list.length) items.push({ kind: 'more', key: `more-${title}`, hidden: list.length - shown.length });
     };
     push('Live now', live, { live: true });
@@ -54,7 +67,7 @@ export function useTodayFeed(dayStart: number, sportId: string, liveOnly: boolea
       if (isToday) push('Later today', later, { cap: 25 });
       push('Final', final, { cap: 12 });
     }
-    return { items, liveCounts, totalLive: live.length, total: filtered.length };
+    return { items, liveCounts, totalLive: live.length, total: filtered.length, featured, strip };
   }, [query.data, query.dataUpdatedAt, sportId, liveOnly, showAllFinals, followedSports, followedTeams, dayStart, clockNow]);
 
   return { ...result, isLoading: query.isLoading, isError: query.isError, refetch: query.refetch, isFetching: query.isFetching };

@@ -70,3 +70,31 @@ export function crowdLabel(n: number): string {
   if (n >= 1000) return `${(n / 1000).toFixed(1).replace(/\.0$/, '')}K`;
   return String(n);
 }
+
+/**
+ * How the Stands crowd has called it so far: how many fans made the call and the
+ * share on each option. Shares follow the odds (favourites draw more picks), with
+ * a seeded lean so every call has its own personality.
+ */
+export function callCrowd(
+  call: { id: string; opensAt: number; closesAt: number; options: { id: string; multiplier: number }[] },
+  sportId: string,
+  now: number,
+): { total: number; shares: Record<string, number> } {
+  const rng = createRng(`callcrowd:${call.id}`);
+  const peak = (SPORT_PEAK[sportId] ?? 4_000) * 0.12 * rng.float(0.45, 1.5);
+  const span = Math.max(1, call.closesAt - call.opensAt);
+  const frac = Math.min(1, Math.max(0, (now - call.opensAt) / span));
+  const total = now < call.opensAt ? 0 : Math.round(peak * (0.06 + 0.94 * Math.sqrt(frac)) * wobble(hashText(call.id) % 50, now / 20));
+  const weights = call.options.map((o) => Math.pow(1 / Math.max(1.01, o.multiplier), 0.85) * rng.float(0.75, 1.3));
+  const sum = weights.reduce((a, b) => a + b, 0) || 1;
+  const raw = weights.map((w) => (w / sum) * 100);
+  const shares: Record<string, number> = {};
+  // Round so the shares add up to exactly 100.
+  const floors = raw.map(Math.floor);
+  let left = 100 - floors.reduce((a, b) => a + b, 0);
+  const order = raw.map((v, i) => ({ i, rem: v - Math.floor(v) })).sort((a, b) => b.rem - a.rem);
+  for (const { i } of order) { if (left <= 0) break; floors[i]++; left--; }
+  call.options.forEach((o, i) => { shares[o.id] = floors[i]; });
+  return { total, shares };
+}

@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 import { Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 
 import { ScoreCard } from '@/components/event/ScoreCard';
+import { FeaturedEvents } from '@/components/FeaturedEvents';
 import { TodayHeader } from '@/components/TodayHeader';
 import { Button } from '@/components/ui/Button';
 import { SectionHeading } from '@/components/ui/Misc';
@@ -32,8 +33,11 @@ export default function Today() {
   const feed = useTodayFeed(dayStart, sport, liveOnly, showAllFinals, now);
 
   const header = (
-    <TodayHeader dayStart={dayStart} today={today} onDay={setDayStart} sport={sport} onSport={setSport}
-      liveCounts={feed.liveCounts} totalLive={feed.totalLive} liveOnly={liveOnly} onLiveOnly={setLiveOnly} />
+    <View>
+      <TodayHeader dayStart={dayStart} today={today} onDay={setDayStart} sport={sport} onSport={setSport}
+        liveCounts={feed.liveCounts} totalLive={feed.totalLive} liveOnly={liveOnly} onLiveOnly={setLiveOnly} strip={feed.strip} />
+      {dayStart === today ? <FeaturedEvents events={feed.featured} /> : null}
+    </View>
   );
 
   const renderItem = ({ item }: { item: FeedItem }) => {

@@ -90,6 +90,6 @@ const styles = StyleSheet.create({
   inputError: { borderColor: colors.live },
   error: { ...type.label, color: '#FF8A95' },
   tile: { flex: 1, backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, padding: space.md, gap: 2 },
-  tileValue: { ...type.score, fontSize: 28, color: colors.text },
+  tileValue: { ...type.score, fontSize: 24, color: colors.text },
   tileLabel: { ...type.label, color: colors.textDim },
 });

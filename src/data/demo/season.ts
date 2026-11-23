@@ -3,7 +3,7 @@
 // fighters' career records, and past meetings between two sides.
 // Everything is seeded, so every phone sees the same table.
 import { sportById } from '@/config/sports';
-import { DAY } from '@/lib/format';
+import { DAY, ordinal } from '@/lib/format';
 import { createRng, hashText } from '@/lib/random';
 
 import type { Competitor } from '../types';
@@ -381,6 +381,12 @@ export function fightRecord(competitor: Competitor): FightRecord {
   return { won, lost, drawn, finishes, ranking: idx >= 0 && idx < 15 ? idx + 1 : null };
 }
 
+/** Fighters in a division, champion first, with their records. */
+export function fightRankings(sportId: string): ({ competitorId: string } & FightRecord)[] {
+  return participantsFor(sportId).slice().sort((a, b) => b.strength - a.strength)
+    .map((c) => ({ competitorId: c.id, ...fightRecord(c) }));
+}
+
 // ---------------------------------------------------------------------------
 // One-line summaries for score cards and headers
 // ---------------------------------------------------------------------------
@@ -404,12 +410,8 @@ export function recordLine(competitorId: string, now: number): string | null {
   return TEAM_RULES[c.sportId]?.drawChance ? `${r.won}-${r.drawn}-${r.lost}` : `${r.won}-${r.lost}`;
 }
 
-/** "1st", "2nd", "3rd", "4th"... */
-export function ordinal(n: number): string {
-  const s = ['th', 'st', 'nd', 'rd'];
-  const v = n % 100;
-  return `${n}${s[(v - 20) % 10] ?? s[v] ?? s[0]}`;
-}
+/** "1st", "2nd", "3rd", "4th"... (re-exported so screens can get it from one place). */
+export { ordinal };
 
 /** The sport's main league name, used as the standings title. */
 export function leagueName(sportId: string): string {
