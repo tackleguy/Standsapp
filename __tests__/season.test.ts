@@ -75,3 +75,29 @@ describe('crowd model', () => {
     expect(crowdLabel(912)).toBe('912');
   });
 });
+
+const finalStateOf = (m: Parameters<typeof simulate>[0]) => simulate(m, Number.MAX_SAFE_INTEGER);
+
+describe('timetable', () => {
+  it('never books a team or athlete into two games at once', () => {
+    const { eventsBetween } = jest.requireActual('@/data/demo/schedule') as typeof import('@/data/demo/schedule');
+    const from = Date.parse('2026-11-21T00:00:00Z');
+    const metas = eventsBetween(from, from + 3 * 86_400_000).filter((m) => m.format !== 'race');
+    const byCompetitor = new Map<string, { start: number; end: number; id: string }[]>();
+    for (const m of metas) {
+      for (const id of m.competitorIds) {
+        const list = byCompetitor.get(id) ?? [];
+        // Use the real finish (overtime and all), not just the planned length.
+        list.push({ start: m.startsAt, end: m.disruption ? m.startsAt : finalStateOf(m).endsAt, id: m.id });
+        byCompetitor.set(id, list);
+      }
+    }
+    for (const [id, list] of byCompetitor) {
+      list.sort((a, b) => a.start - b.start);
+      for (let i = 1; i < list.length; i++) {
+        if (list[i].start < list[i - 1].end) throw new Error(`${id} double-booked: ${list[i - 1].id} and ${list[i].id}`);
+      }
+    }
+    expect(byCompetitor.size).toBeGreaterThan(50);
+  });
+});

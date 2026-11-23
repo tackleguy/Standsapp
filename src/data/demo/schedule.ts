@@ -25,17 +25,42 @@ function slotStarts(plan: SportPlan, dayStart: number): number[] {
   return starts;
 }
 
-function pairings(plan: SportPlan, ids: string[], count: number, seed: string): [string, string][] {
-  const rng = createRng(seed);
-  const pairs: [string, string][] = [];
-  let pool: string[] = [];
-  for (let i = 0; i < count; i++) {
-    if (pool.length < 2) pool = rng.shuffle(ids);
-    const home = pool.pop() as string;
-    const away = pool.pop() as string;
-    pairs.push([home, away]);
+/**
+ * Who plays whom in a given slot, by the circle method that real leagues use for
+ * round-robin fixtures. Slots are numbered from a fixed epoch, so consecutive
+ * days line up, and a team's games are always about half a round apart: no team
+ * is ever in two games at once.
+ */
+function roundRobinPair(sportId: string, ids: string[], slot: number): [string, string] | null {
+  if (ids.length < 2) return null;
+  const order = rrOrder(sportId, ids);
+  const n = order.length % 2 === 0 ? order.length : order.length + 1; // odd fields get a bye
+  const perRound = n / 2;
+  const round = Math.floor(slot / perRound) % (n - 1);
+  const i = slot % perRound;
+  const at = (p: number) => (p === 0 ? 0 : 1 + ((p - 1 + round) % (n - 1)));
+  const a = order[at(i)];
+  const b = order[at(n - 1 - i)];
+  if (!a || !b) return roundRobinPair(sportId, ids, slot + 1); // the bye: take the next fixture
+  // Alternate home and away from round to round.
+  return (round + i) % 2 === 0 ? [a, b] : [b, a];
+}
+
+const rrCache = new Map<string, string[]>();
+function rrOrder(sportId: string, ids: string[]): string[] {
+  const hit = rrCache.get(sportId);
+  if (hit) return hit;
+  const order = createRng(`rr:${sportId}`).shuffle(ids);
+  rrCache.set(sportId, order);
+  return order;
+}
+
+/** A number for every slot since the epoch, so fixtures continue across midnight. */
+function slotNumber(plan: SportPlan, startsAt: number, dayIndex: number, i: number): number {
+  if (plan.slots.kind === 'rolling') {
+    return Math.round((startsAt - plan.slots.offsetMin * MINUTE) / (plan.slots.everyMin * MINUTE));
   }
-  return pairs;
+  return dayIndex * plan.slots.hours.length + i;
 }
 
 function buildDay(plan: SportPlan, dayStart: number): EventMeta[] {
@@ -50,7 +75,6 @@ function buildDay(plan: SportPlan, dayStart: number): EventMeta[] {
   const comps = world.competitions.filter((c) => c.sportId === plan.sportId);
   const dayIndex = Math.floor(dayStart / DAY);
   const events: EventMeta[] = [];
-  const pairs = pairings(plan, ids, starts.length, `pairs:${plan.sportId}:${dayKey}`);
 
   starts.forEach((startsAt, i) => {
     const id = `${plan.sportId}-${dayKey}-${String(i).padStart(2, '0')}`;
@@ -92,7 +116,9 @@ function buildDay(plan: SportPlan, dayStart: number): EventMeta[] {
       return;
     }
 
-    const [homeId, awayId] = pairs[i];
+    const pair = roundRobinPair(plan.sportId, ids, slotNumber(plan, startsAt, dayIndex, i));
+    if (!pair) return;
+    const [homeId, awayId] = pair;
     const home = world.byId.get(homeId);
     const away = world.byId.get(awayId);
     if (!home || !away) return;
