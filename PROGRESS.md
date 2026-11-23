@@ -29,7 +29,8 @@
 - **Calls**: winner, totals, first score, method of victory, podium, safety car, breakaway, plus
   in-play calls with live odds. Stakes 10-500, payouts and refunds settle automatically.
 - **Stand Cards**: 25-Tix packs of 3 with published odds (70/22/7/1), flip reveal, collection with
-  filters, serial numbers, Tix bonuses when your cards' teams win.
+  filters, serial numbers, Tix bonuses when your cards' teams win. (Changed in November 2026: see
+  "Players, fantasy points and new Stand Cards" below.)
 - **Sections**: create, join by code, public demo Sections with chat and weekly leaderboard.
 - **Gate Check** daily bonus with streaks; **weekly leaderboard**; **search**; **profile**.
 - **Safety**: guest browsing, account needed to chat/predict/collect, 13+ age check, word filter,
@@ -96,7 +97,39 @@
 - Saved data moved to version 2 without losing any cards.
 - Then made the cards look like real trading cards (see "Stand Cards, like real cards" above).
 
-Checks: `npm run check` (linter + type checker + 115 tests) passes.
+## Players, fantasy points and new Stand Cards (November 2026)
+
+- **Players in every sport.** Every team in all 18 sports has a named roster with positions and shirt
+  numbers (soccer keepers to cricket bowlers; football has 21 per team). In individual sports
+  (F1, MotoGP, IndyCar, cycling, golf, tennis, MMA, boxing) the athletes are the players. Every
+  simulator credits players with stats as the game happens, and never changes a score or result.
+- **Fantasy points for every sport** (`src/data/demo/players/sports/`). Football uses half-PPR
+  scoring, plus points for kickers, punters and defenders. Each sport is tuned so a typical starter
+  scores about 8-12 points and a big game 25 or more.
+- **Football is now played snap by snap** (`src/data/demo/engines/football.ts`): downs,
+  distance, ball spot, personnel groupings, runs, passes, sacks, penalties, punts, field goals,
+  two-point tries, kneel-downs and overtime. It averages about 44 points, 350 yards and 65% completions.
+- **Player Performance page** (`src/app/player/[id].tsx`, like the user's photo 1): fantasy
+  points (FPS), the stat line, a stat grid, rating by quarter/half/set/round, every play the player
+  was in, recent games, and their player card. Tap any player anywhere to open it.
+- **Play-card feed** (like the user's photo 2): each play shows the main player's picture, a
+  headline ("13-yd catch"), every player's running stat line, and the play's rating. Football adds a
+  field strip (ball spot, line to gain, down) and Personnel / Run% / Success% tiles. Team sports get
+  a tab per team (e.g. "NE", "SEA") with live fantasy points; individual sports get one for the field.
+- **New Stand Cards rules:**
+  - **Player cards and team cards are chosen**, not pulled: the first player card is free, then 200 Tix
+    each; team cards are 600 Tix ("Choose a card" screen, plus buttons on player and team pages).
+  - After every game, **a player card earns its player's fantasy points, rounded, in Tix**; a team card
+    earns the combined points of the team's 3 best players. Only games that start after you got the
+    card count, and a bad game never costs Tix.
+  - **Packs hold Play cards and Performance cards** from real games in the last three days. Bigger plays
+    and bigger games are rarer. Game Packs hold one game's moments, from the start until two hours
+    after the end (performances once it is over).
+  - Classic team and athlete cards from before keep working and keep their win bonus. Saved data
+    moved to version 3 without losing any cards.
+  - The Cards tab has a new first section, **My players**, with live points and Tix earned.
+
+Checks: `npm run check` (linter + type checker + tests) passes.
 
 ## What is next
 
