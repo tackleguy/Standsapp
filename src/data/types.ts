@@ -191,11 +191,26 @@ export type PackTypeId = 'daily' | 'standard' | 'premium' | 'elite' | 'game';
 /** Where a card came from. */
 export type CardSource = PackTypeId | 'tradeup';
 
+/**
+ * What a card shows. Players and teams are chosen and earn Tix from fantasy
+ * points; plays and performances come out of packs. Cards saved before kinds
+ * existed have no kind: they are classic team or athlete cards.
+ */
+export type CardKind = 'player' | 'team' | 'play' | 'performance';
+
 /** A card a fan owns. Mirrors the planned `owned_cards` table. */
 export interface OwnedCard {
   id: string;
   templateId: string;
+  /** The team or athlete the card belongs to (for plays and performances: the player's side). */
   competitorId: string;
+  kind?: CardKind;
+  /** Player and performance cards: the player. Play cards: the main player. */
+  playerId?: string | null;
+  /** Play cards: the play (`${eventId}#${seq}`). */
+  playId?: string | null;
+  /** Play and performance cards: the game it happened in. */
+  gameId?: string | null;
   rarity: CardRarity;
   serial: number;
   acquiredAt: number;

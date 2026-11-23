@@ -187,3 +187,7 @@ export function getAlertCandidates(now: number, followed: string[], callEventIds
     .map((m) => simulate(m, now))
     .filter((s) => s.status === 'live' || (s.status === 'finished' && now - s.endsAt < 3 * 60_000));
 }
+
+// --- Players (every sport) and football's down-and-distance ---
+export { footballSituation, footballTeamNumbers, downText, spotText } from './demo/engines/football';
+export type { FootballSituation, FootballTeamNumbers } from './demo/engines/football';

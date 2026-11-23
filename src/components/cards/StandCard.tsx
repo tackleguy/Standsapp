@@ -81,7 +81,7 @@ function Sheen({ width, height, holo, animated, tint }: { width: number; height:
     : [[tint, 0], [tint, 0.12], ['#FFFFFF', 0.32], [tint, 0.12], [tint, 0]];
   return (
     <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, moving ? { transform: [{ translateX }] } : null]}>
-      <Svg width={width} height={height} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      <Svg width={width} height={height} aria-hidden>
         <Defs>
           <LinearGradient id={id} x1="0" y1="0" x2="1" y2="1">
             <Stop offset="0" stopColor="#FFFFFF" stopOpacity={0} />

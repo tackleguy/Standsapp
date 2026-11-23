@@ -3,6 +3,7 @@ import { FlashList } from '@shopify/flash-list';
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 
+import { playLines } from '@/data/playerApi';
 import type { EventState } from '@/data/types';
 import { useAccountGate } from '@/hooks/useAccountGate';
 import { useEventCalls } from '@/hooks/useLiveData';
@@ -14,15 +15,18 @@ import { colors, fonts, space, type } from '@/theme/tokens';
 
 import { CallCard } from '../calls/CallCard';
 import { GamePackBanner } from '../cards/GamePackBanner';
+import { scoresBefore } from '../players/playText';
 import { LiveDot } from '../ui/LiveDot';
 import { Segmented } from '../ui/Misc';
 import { EmptyState, ErrorState, Skeleton } from '../ui/StateViews';
+import { FeedTiles } from './FeedTiles';
+import { PlayCard } from './PlayCard';
 import { PlayRow } from './PlayRow';
 import { WinProbChart } from './WinProbChart';
 
 type ScrollHandler = (e: NativeSyntheticEvent<NativeScrollEvent>) => void;
 
-export function FeedTab({ state, onScroll }: { state: EventState; onScroll: ScrollHandler }) {
+export function FeedTab({ state, onScroll, onOpenChat }: { state: EventState; onScroll: ScrollHandler; onOpenChat?: () => void }) {
   const now = useNow(10_000);
   const [filter, setFilter] = useState<'all' | 'key'>('all');
   const ratings = useUserStore((s) => s.ratings);
@@ -33,9 +37,12 @@ export function FeedTab({ state, onScroll }: { state: EventState; onScroll: Scro
     return [...list].reverse();
   }, [state.plays, filter]);
   const keyCount = useMemo(() => state.plays.filter((p) => p.importance >= 2).length, [state.plays]);
+  const lines = useMemo(() => playLines(state.meta, state.plays), [state.meta, state.plays]);
+  const before = useMemo(() => scoresBefore(state.plays), [state.plays]);
 
   const header = (
     <View>
+      <View style={styles.tiles}><FeedTiles state={state} now={now} /></View>
       <WinProbChart state={state} now={now} title={state.status === 'live' ? 'Live win probability' : 'How it swung'} />
       <View style={styles.feedHead}>
         {state.status === 'live' ? (
@@ -68,17 +75,27 @@ export function FeedTab({ state, onScroll }: { state: EventState; onScroll: Scro
     <FlashList
       data={plays}
       keyExtractor={(p) => p.id}
-      getItemType={(p) => (p.importance === 3 ? 'big' : p.importance === 2 ? 'key' : 'minor')}
+      getItemType={(p) => (lines.has(p.id) ? 'card' : p.importance === 3 ? 'big' : p.importance === 2 ? 'key' : 'minor')}
       // New plays slide in at the top, under the chart, instead of nudging the list away from them.
       maintainVisibleContentPosition={{ disabled: true }}
       onScroll={onScroll}
       scrollEventThrottle={32}
       ListHeaderComponent={header}
       ListEmptyComponent={<EmptyState icon="hourglass" title="Waiting for the first play" />}
-      renderItem={({ item }) => (
-        <PlayRow play={item} now={now} sportId={state.meta.sportId} myRating={ratings[item.id]} canRate={!isGuest}
-          onRate={(n) => rate(item.id, n)} onNeedAccount={() => require('rate plays')} />
-      )}
+      renderItem={({ item }) => {
+        const itemLines = lines.get(item.id);
+        if (itemLines?.length) {
+          return (
+            <PlayCard play={item} state={state} lines={itemLines} scoreBefore={before.get(item.id)} now={now} myRating={ratings[item.id]}
+              canRate={!isGuest} onRate={(n) => rate(item.id, n)} onNeedAccount={() => require('rate plays')}
+              onComments={() => onOpenChat?.()} />
+          );
+        }
+        return (
+          <PlayRow play={item} now={now} sportId={state.meta.sportId} myRating={ratings[item.id]} canRate={!isGuest}
+            onRate={(n) => rate(item.id, n)} onNeedAccount={() => require('rate plays')} />
+        );
+      }}
       ListFooterComponent={<View style={{ height: 40 }} />}
     />
   );
@@ -104,6 +121,7 @@ export function CallsTab({ state, onScroll }: { state: EventState; onScroll: Scr
 
 const styles = StyleSheet.create({
   feedHead: { padding: space.lg, gap: space.md },
+  tiles: { paddingHorizontal: space.lg, paddingTop: space.md },
   liveNote: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   liveText: { fontFamily: fonts.heavy, fontSize: 15, letterSpacing: 0.6, color: colors.text, textTransform: 'uppercase' },
   liveSub: { ...type.label, color: colors.loss, marginLeft: 'auto' },

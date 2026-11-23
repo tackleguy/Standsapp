@@ -5,6 +5,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import {
   getCompetitor, getDayEvents, getEvent, getEventCalls, getGamePackEvents, getOpenCalls, search,
 } from '@/data/api';
+import { getPlayerGame, getPlayerLog } from '@/data/playerApi';
 import { currentTime, DAY } from '@/lib/format';
 
 const asPromise = <T,>(fn: () => T) => new Promise<T>((resolve, reject) => {
@@ -69,6 +70,24 @@ export function useGamePacks() {
     queryKey: ['game-packs'],
     queryFn: () => asPromise(() => getGamePackEvents(currentTime())),
     refetchInterval: 15_000,
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function usePlayerGame(playerId: string, eventId: string | null) {
+  return useQuery({
+    queryKey: ['player-game', playerId, eventId],
+    enabled: !!eventId,
+    queryFn: () => asPromise(() => (eventId ? getPlayerGame(playerId, eventId, currentTime()) : null)),
+    refetchInterval: (q) => (q.state.data?.state.status === 'live' ? 3000 : false),
+  });
+}
+
+export function usePlayerLog(playerId: string) {
+  return useQuery({
+    queryKey: ['player-log', playerId],
+    queryFn: () => asPromise(() => getPlayerLog(playerId, currentTime())),
+    refetchInterval: 30_000,
     placeholderData: keepPreviousData,
   });
 }

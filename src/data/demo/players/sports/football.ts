@@ -56,8 +56,10 @@ export const football: SportStatsDef = {
     if (role === 'kick' || pos === 'K') return `${fgMade(l)}/${n(l, 'fgAtt')} FG, ${n(l, 'pat')} XP`;
     if (role === 'punt' || pos === 'P') return `${n(l, 'punts')} punts, ${avg(n(l, 'puntYds'), n(l, 'punts'))} avg`;
     if (role === 'def' || pos === 'DL' || pos === 'LB' || pos === 'DB') {
-      return join([`${n(l, 'tkl')} tkl`, n(l, 'sacks') ? `${n(l, 'sacks')} sack` : null, n(l, 'ints') ? `${n(l, 'ints')} int` : null], ', ');
+      return join([`${n(l, 'tkl')} tkl`, n(l, 'sacks') ? `${n(l, 'sacks')} sack` : null, n(l, 'ints') ? `${n(l, 'ints')} int` : null,
+        n(l, 'pd') ? `${n(l, 'pd')} pd` : null], ', ');
     }
+    if (role === 'ret') return 'kick return';
     return `${n(l, 'rushYds')} yd, ${n(l, 'rushAtt')} car`;
   },
   grid: (pos) => {

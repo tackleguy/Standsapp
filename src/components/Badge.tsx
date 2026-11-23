@@ -17,7 +17,7 @@ function BadgeImpl({ name, shortName, kind = 'team', size = 32, colors }: BadgeP
   const spec = badgeFor(name, shortName, kind, colors);
   const fontSize = spec.initials.length >= 3 ? 30 : 36;
   return (
-    <Svg width={size} height={size} viewBox="0 0 100 100" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+    <Svg width={size} height={size} viewBox="0 0 100 100" aria-hidden>
       {spec.shape === 'circle' && (
         <>
           <Circle cx={50} cy={50} r={47} fill={spec.background} stroke="#FFFFFF" strokeOpacity={0.16} strokeWidth={3} />

@@ -7,6 +7,8 @@ import { ChatView } from '@/components/chat/ChatView';
 import { BigMoment } from '@/components/event/BigMoment';
 import { EventHeader } from '@/components/event/EventHeader';
 import { CallsTab, FeedTab } from '@/components/event/EventTabs';
+import { FieldStrip } from '@/components/event/FieldStrip';
+import { PlayersTab } from '@/components/event/PlayersTab';
 import { PreviewTab } from '@/components/event/PreviewTab';
 import { StatsView } from '@/components/event/StatsView';
 import { WinProbChart } from '@/components/event/WinProbChart';
@@ -16,7 +18,7 @@ import { Segmented } from '@/components/ui/Misc';
 import { Header, Screen } from '@/components/ui/Screen';
 import { EmptyState, ErrorState, Skeleton } from '@/components/ui/StateViews';
 import { sportById } from '@/config/sports';
-import { getWorld } from '@/data/api';
+import { competitorById, getWorld } from '@/data/api';
 import type { EventState } from '@/data/types';
 import { useAccountGate } from '@/hooks/useAccountGate';
 import { useEvent } from '@/hooks/useLiveData';
@@ -25,7 +27,7 @@ import { hasTrackMap } from '@/lib/tracks';
 import { useUserStore } from '@/store/user';
 import { space } from '@/theme/tokens';
 
-type Tab = 'preview' | 'feed' | 'track' | 'chat' | 'calls' | 'stats';
+type Tab = 'preview' | 'feed' | 'track' | 'chat' | 'calls' | 'stats' | 'players' | `side:${string}`;
 
 export default function EventScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -48,6 +50,7 @@ export default function EventScreen() {
   const sport = sportById(state.meta.sportId);
   const comp = getWorld().competitionById.get(state.meta.competitionId);
   const showTrack = hasTrackMap(state.meta.sportId);
+  const teamSides = state.meta.competitorIds.length === 2 && state.meta.competitorIds.every((cid) => competitorById(cid)?.kind === 'team');
   const scheduled = state.status === 'scheduled';
   const first: Tab = scheduled ? 'preview' : 'feed';
   const requested = tab === 'preview' && !scheduled ? 'feed' : tab === 'feed' && scheduled ? 'preview' : tab;
@@ -58,6 +61,10 @@ export default function EventScreen() {
     { value: 'chat', label: 'Chat' },
     { value: 'calls', label: 'Calls', badge: myCalls || undefined },
     ...(scheduled ? [] : [{ value: 'stats' as Tab, label: 'Stats' }]),
+    // A tab per team in team sports (like "NE" and "SEA"), or one for the whole field.
+    ...(scheduled ? [] : teamSides
+      ? state.meta.competitorIds.map((cid) => ({ value: `side:${cid}` as Tab, label: competitorById(cid)?.shortName ?? 'Team' }))
+      : [{ value: 'players' as Tab, label: 'Players' }]),
   ];
   const choose = (t: Tab) => { setTab(t); setCompact(false); };
 
@@ -71,14 +78,17 @@ export default function EventScreen() {
           </>
         )} />
       <EventHeader state={state} compact={compact && active !== 'chat'} />
+      <FieldStrip state={state} />
       <View style={styles.tabs}><Segmented value={active} onChange={choose} options={options} /></View>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90}>
         {active === 'preview' && <PreviewTab state={state} onScroll={onScroll} onMakeCalls={() => choose('calls')} />}
-        {active === 'feed' && <FeedTab state={state} onScroll={onScroll} />}
+        {active === 'feed' && <FeedTab state={state} onScroll={onScroll} onOpenChat={() => choose('chat')} />}
         {active === 'track' && <TrackTab state={state} onScroll={onScroll} />}
         {active === 'chat' && <ChatView threadId={`event:${state.meta.id}`} onNeedAccount={() => require('join the chat')} />}
         {active === 'calls' && <CallsTab state={state} onScroll={onScroll} />}
         {active === 'stats' && <StatsTab state={state} onScroll={onScroll} />}
+        {active === 'players' && <PlayersTab state={state} sideId={null} onScroll={onScroll} />}
+        {active.startsWith('side:') && <PlayersTab key={active} state={state} sideId={active.slice(5)} onScroll={onScroll} />}
         <BigMoment state={state} />
       </KeyboardAvoidingView>
     </Screen>

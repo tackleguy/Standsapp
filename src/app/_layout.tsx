@@ -51,6 +51,8 @@ export default function RootLayout() {
               <Stack.Screen name="(tabs)" />
               <Stack.Screen name="event/[id]" />
               <Stack.Screen name="competitor/[id]" />
+              <Stack.Screen name="player/[id]" />
+              <Stack.Screen name="pick" />
               <Stack.Screen name="section/[id]" />
               <Stack.Screen name="search" options={{ animation: 'fade' }} />
               <Stack.Screen name="settings" />
