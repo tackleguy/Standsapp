@@ -97,6 +97,6 @@
 
 ## Accounts and keys (names only, never values)
 
-- GitHub repo: `krichman2000/Standsapp`, connected. Version 1 lives on branch `claude/great-lamport-4twc5u` (the repo's default branch); version 2 is on `claude/inspiring-cannon-8mk1i0`.
+- GitHub repo: `krichman2000/Standsapp`, connected. Code lives on branch `claude/great-lamport-4twc5u` (the repo's default, "main" branch), which now has version 2.
 - Supabase: an account is connected to Claude but **not used**. Decision: no database for now.
 - Vercel: to be connected.
