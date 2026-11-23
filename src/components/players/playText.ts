@@ -31,6 +31,8 @@ export function clockAndDown(play: Play): string {
 /** "NE 7-3 SEA" for two-sided events, null for fields. */
 export function scoreWithTeams(state: EventState, score: string | undefined): string | null {
   if (state.meta.competitorIds.length !== 2 || !score) return null;
+  // Cricket and tennis scores already say who is who ("GLE 135/7").
+  if (!/^\d+-\d+$/.test(score)) return score;
   const [h, a] = state.meta.competitorIds.map((id) => competitorById(id)?.shortName ?? '?');
   return `${h} ${score} ${a}`;
 }
