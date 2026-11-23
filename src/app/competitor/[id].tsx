@@ -6,7 +6,7 @@ import { CompetitorBadge } from '@/components/Badge';
 import { ScoreCard } from '@/components/event/ScoreCard';
 import { toCardEvent } from '@/components/event/toCardEvent';
 import { Button } from '@/components/ui/Button';
-import { DemoTag, SectionHeading, StatTile } from '@/components/ui/Misc';
+import { SectionHeading, StatTile } from '@/components/ui/Misc';
 import { Header, Screen } from '@/components/ui/Screen';
 import { EmptyState, ErrorState, Skeleton } from '@/components/ui/StateViews';
 import { sportById } from '@/config/sports';
@@ -40,7 +40,6 @@ export default function CompetitorScreen() {
           <CompetitorBadge id={c.id} size={96} />
           <Text style={styles.name}>{c.name}</Text>
           <Text style={styles.sub}>{c.kind === 'team' ? `${c.home} · ${competition?.name ?? ''}` : `${c.home}${team ? ` · ${team.name}` : ''}`}</Text>
-          <DemoTag />
           <Button label={isFollowed ? 'Following' : 'Follow'} icon={isFollowed ? 'star' : 'star-outline'} variant={isFollowed ? 'secondary' : 'primary'}
             onPress={() => toggle(c.id)} style={{ minWidth: 180, marginTop: space.sm }} />
         </View>

@@ -56,7 +56,7 @@ export default function Today() {
           renderItem={renderItem}
           ListHeaderComponent={header}
           ListEmptyComponent={<QuietDay liveOnly={liveOnly} onShowAll={() => setLiveOnly(false)} sport={sport} now={now} />}
-          ListFooterComponent={<Text style={styles.footer}>All scores on Stands are demo data until real feeds are connected.</Text>}
+          ListFooterComponent={<Text style={styles.footer}>Preview season: games, scores and fans are simulated until live feeds connect.</Text>}
           refreshControl={<RefreshControl refreshing={feed.isFetching && !feed.isLoading} onRefresh={() => { feed.refetch(); }} tintColor={colors.accent} />}
         />
       )}

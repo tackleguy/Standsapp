@@ -13,7 +13,6 @@ import { colors, radius, space, type } from '@/theme/tokens';
 
 import { CompetitorBadge } from '../Badge';
 import { LiveDot } from '../ui/LiveDot';
-import { DemoTag } from '../ui/Misc';
 import { TrackMap, teamColors } from './TrackMap';
 
 export function TrackTab({ state, onScroll }: { state: EventState; onScroll: (e: NativeSyntheticEvent<NativeScrollEvent>) => void }) {
@@ -36,7 +35,6 @@ export function TrackTab({ state, onScroll }: { state: EventState; onScroll: (e:
       <View style={[styles.banner, snapshot.safetyCar && styles.bannerSc]}>
         {state.status === 'live' ? <LiveDot /> : null}
         <Text style={styles.bannerText}>{banner}</Text>
-        <DemoTag compact />
       </View>
       <TrackMap circuit={state.meta.venue} snapshot={snapshot} selectedId={selected} followed={followed}
         onSelect={(id) => setSelected(id === selected ? null : id)} />

@@ -149,3 +149,11 @@ export function getFinalState(eventId: string): EventState | null {
 }
 
 export { competitorById, getWorld };
+
+// Season: tables, records, form, championships. Crowd: who is watching right now.
+export {
+  championship, championshipRow, fightRecord, headToHead, leagueName, nextRoundAt, ordinal, recordLine,
+  roundsPlayed, simulateMatch, standingsKind, teamRow, teamsChampionship, teamTable,
+} from './demo/season';
+export type { ChampionshipRow, FightRecord, Meeting, Result, StandingsKind, TeamRow } from './demo/season';
+export { chattersFor, crowdLabel, watchersFor } from './demo/crowd';

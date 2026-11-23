@@ -65,7 +65,7 @@ export default function SectionScreen() {
             <Text style={styles.code} selectable>{section.inviteCode}</Text>
             <Button label="Share invite" icon="share-social" small onPress={share} />
           </View>
-          <Text style={styles.body}>{memberIds.length + (isMember ? 1 : 0)} members{demo ? ' (demo fans plus you)' : ''}.</Text>
+          <Text style={styles.body}>{memberIds.length + (isMember ? 1 : 0)} members.</Text>
           {!demo ? <Text style={styles.note}>Until Stands is connected to its database, this Section lives on this device only.</Text> : null}
           {mine ? (
             <Button label="Delete Section" icon="trash" variant="danger" onPress={() => { remove(section.id); toast('Section deleted.'); router.back(); }} />

@@ -81,7 +81,7 @@ function Row({ name, sportId, sub, members, onPress, demo }: { id: string; name:
       </View>
       <View style={{ alignItems: 'flex-end' }}>
         <Text style={styles.members}>{members}</Text>
-        <Text style={styles.sub}>{demo ? 'demo' : sportById(sportId)?.name}</Text>
+        <Text style={styles.sub}>{sportById(sportId)?.name}{demo ? ' · Public' : ''}</Text>
       </View>
     </Pressable>
   );

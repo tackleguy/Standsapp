@@ -44,7 +44,7 @@ export function Leaderboard({ fanIds, includeMe = true }: { fanIds?: string[]; i
           <Avatar seed={item.avatarSeed} name={item.displayName} size={34} />
           <View style={{ flex: 1 }}>
             <Text style={styles.name} numberOfLines={1}>{item.isMe ? 'You' : item.displayName}</Text>
-            <Text style={styles.handle} numberOfLines={1}>@{item.username}{item.isMe ? '' : ' · demo fan'}</Text>
+            <Text style={styles.handle} numberOfLines={1}>@{item.username}</Text>
           </View>
           <Text style={styles.score}>+{formatNumber(item.cloutWon)}</Text>
         </View>

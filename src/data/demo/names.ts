@@ -90,3 +90,38 @@ export const FAN_WORDS_B = [
   'king', 'queen', 'fan', 'nerd', 'hawk', 'ghost', 'wizard', 'chief', 'sage', 'owl', 'oracle',
   'nomad', 'prophet', 'machine', 'gremlin', 'legend', 'ultra', 'bandit', 'scout', 'captain',
 ] as const;
+
+/** Kit colours [primary, secondary] for clubs. Assigned per league so rivals never clash. */
+export const KIT_COLORS: readonly (readonly [string, string])[] = [
+  ['#C8102E', '#FFFFFF'], ['#0057B8', '#FFFFFF'], ['#00843D', '#FFD100'], ['#5A2D82', '#F2C75C'],
+  ['#F47A20', '#0B1F3A'], ['#0B1F3A', '#E4B53B'], ['#111111', '#F5D000'], ['#6CACE4', '#0B1F3A'],
+  ['#8A1538', '#7EC8E3'], ['#FDB913', '#111111'], ['#007A78', '#F4F1E6'], ['#E03A3E', '#FDB927'],
+  ['#1D428A', '#FFC72C'], ['#00A651', '#FFFFFF'], ['#7A263A', '#FFB81C'], ['#002D62', '#E31837'],
+  ['#FF6B00', '#FFFFFF'], ['#4B2E83', '#FFFFFF'], ['#006BB6', '#F58426'], ['#CE1141', '#111111'],
+  ['#00788C', '#F9A01B'], ['#2C2A29', '#C4CED4'], ['#E56020', '#1D1160'], ['#98002E', '#F9A01B'],
+  ['#3A7D44', '#F2E8CF'], ['#00205B', '#FFFFFF'], ['#FFCD00', '#00205B'], ['#B4975A', '#0B1F3A'],
+  ['#E4002B', '#002244'], ['#41B6E6', '#FFFFFF'], ['#702F8A', '#00B2A9'], ['#F9423A', '#2E2D2C'],
+  ['#046A38', '#FFFFFF'], ['#A6192E', '#FFFFFF'], ['#0C2340', '#C8102E'], ['#DA291C', '#FFC72C'],
+  ['#00B140', '#111111'], ['#1E3A8A', '#93C5FD'], ['#C99700', '#FFFFFF'], ['#EC008C', '#111111'],
+];
+
+/** Liveries for RACING_TEAMS, in the same order. */
+export const RACING_COLORS: readonly (readonly [string, string])[] = [
+  ['#E10600', '#FFFFFF'], ['#00A3E0', '#0B1F3A'], ['#FF8000', '#0B1F3A'], ['#1E5BC6', '#FFD400'],
+  ['#00594F', '#C4E86B'], ['#F2F2F2', '#C8102E'], ['#8F979C', '#111111'], ['#2B4562', '#E8E8E8'],
+  ['#6B21A8', '#F5D0FE'], ['#3BD16F', '#111111'], ['#FFD400', '#111111'], ['#E6007E', '#FFFFFF'],
+];
+
+/** Jerseys for CYCLING_TEAMS, in the same order. */
+export const CYCLING_COLORS: readonly (readonly [string, string])[] = [
+  ['#00A3E0', '#111111'], ['#E10600', '#FFFFFF'], ['#FFD400', '#111111'], ['#2E7D32', '#FFFFFF'],
+  ['#6B21A8', '#FFFFFF'], ['#FF8000', '#111111'],
+];
+
+/** Flag colours for NATIONS, in the same order (solo athletes wear their nation). */
+export const NATION_COLORS: readonly (readonly [string, string])[] = [
+  ['#C8102E', '#FFFFFF'], ['#00843D', '#FFD100'], ['#111111', '#FFCE00'], ['#0057B8', '#FFD700'],
+  ['#5A2D82', '#FFFFFF'], ['#E4002B', '#FFD100'], ['#00205B', '#FFFFFF'], ['#007A78', '#FFFFFF'],
+  ['#F47A20', '#FFFFFF'], ['#6CACE4', '#FFFFFF'], ['#046A38', '#E4002B'], ['#8A1538', '#FFFFFF'],
+  ['#1D428A', '#E31837'], ['#FDB913', '#0B1F3A'], ['#E03A3E', '#111111'], ['#41B6E6', '#0B1F3A'],
+];

@@ -6,7 +6,6 @@ import { colors, radius, space, type } from '@/theme/tokens';
 import { Badge } from '../Badge';
 import { Icon } from '../ui/Icon';
 import { StatusPill } from '../ui/LiveDot';
-import { DemoTag } from '../ui/Misc';
 import { FlashScore } from './FlashScore';
 
 export interface CardEntry {
@@ -14,6 +13,7 @@ export interface CardEntry {
   name: string;
   shortName: string;
   kind: 'team' | 'athlete';
+  colors?: readonly [string, string] | null;
   role: 'home' | 'away' | 'entrant';
   score: number | null;
   scoreText: string | null;
@@ -70,7 +70,6 @@ export function ScoreCard({ event, onPress }: { event: CardEvent; onPress: () =>
         <Text style={styles.competition} numberOfLines={1}>
           {event.format === 'race' ? event.title : event.competitionName ?? ''}
         </Text>
-        {event.isDemo ? <DemoTag compact /> : null}
         <StatusPill label={statusLabel(event)} live={live} tone={event.status === 'finished' ? 'final' : event.status === 'postponed' || event.status === 'cancelled' ? 'warn' : 'default'} />
       </View>
 
@@ -82,7 +81,7 @@ export function ScoreCard({ event, onPress }: { event: CardEvent; onPress: () =>
         return (
           <View key={entry.competitorId} style={styles.row}>
             {event.format === 'race' && <Text style={styles.position}>{entry.position ?? '-'}</Text>}
-            <Badge name={entry.name} shortName={entry.shortName} kind={entry.kind} size={28} />
+            <Badge name={entry.name} shortName={entry.shortName} kind={entry.kind} size={28} colors={entry.colors} />
             <Text style={[styles.name, dim && styles.dim, entry.isWinner && styles.winner]} numberOfLines={1}>{entry.name}</Text>
             {entry.note && event.status === 'live' ? <Text style={styles.note}>{entry.note}</Text> : null}
             {event.format === 'head_to_head' && entry.scoreText && entry.score !== null ? (

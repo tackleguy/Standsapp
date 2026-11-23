@@ -27,6 +27,7 @@ export function toCardEvent(state: EventState, followed: Set<string>): CardEvent
         name: c?.name ?? 'Unknown',
         shortName: c?.shortName ?? '?',
         kind: c?.kind ?? 'team',
+        colors: c?.colors ?? null,
         role: e.role,
         score: e.score,
         scoreText: e.scoreText,

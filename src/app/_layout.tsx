@@ -1,4 +1,8 @@
+import {
+  BarlowCondensed_600SemiBold, BarlowCondensed_700Bold, BarlowCondensed_800ExtraBold, BarlowCondensed_900Black,
+} from '@expo-google-fonts/barlow-condensed';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useFonts } from 'expo-font';
 import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
@@ -8,7 +12,7 @@ import { ToastHost } from '@/components/ui/ToastHost';
 import { useHydrated } from '@/hooks/useHydrated';
 import { useSettlementLoop } from '@/hooks/useSettlementLoop';
 import { useUserStore } from '@/store/user';
-import { colors } from '@/theme/tokens';
+import { colors, fonts } from '@/theme/tokens';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 1500, retry: 1, refetchOnWindowFocus: true } },
@@ -21,6 +25,14 @@ const standsTheme = {
 
 export default function RootLayout() {
   const hydrated = useHydrated();
+  const [fontsLoaded, fontError] = useFonts({
+    [fonts.semibold]: BarlowCondensed_600SemiBold,
+    [fonts.bold]: BarlowCondensed_700Bold,
+    [fonts.heavy]: BarlowCondensed_800ExtraBold,
+    [fonts.black]: BarlowCondensed_900Black,
+  });
+  // Never block the app on fonts: if they fail, the system font is used instead.
+  const ready = hydrated && (fontsLoaded || !!fontError);
   const onboarded = useUserStore((s) => s.onboarded);
   useSettlementLoop(hydrated && onboarded);
 
@@ -49,7 +61,7 @@ export default function RootLayout() {
             <Stack.Screen name="rules" />
           </Stack>
           <ToastHost />
-          {!hydrated && (
+          {!ready && (
             <View style={styles.splash}>
               <Text style={styles.word}>Stands</Text>
               <ActivityIndicator color={colors.accent} />

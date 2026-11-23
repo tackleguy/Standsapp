@@ -80,7 +80,7 @@ export function TodayHeader({ dayStart, today, onDay, sport, onSport, liveCounts
 
 const styles = StyleSheet.create({
   top: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.lg, paddingTop: space.sm, gap: space.sm },
-  word: { fontSize: 30, fontWeight: '900', color: colors.text, letterSpacing: -1, flex: 1 },
+  word: { ...type.display, fontSize: 38, color: colors.text, flex: 1, textTransform: 'uppercase', fontStyle: 'italic' },
   wallet: { flexDirection: 'row', alignItems: 'center', gap: space.sm, backgroundColor: colors.surface, borderRadius: radius.pill,
     paddingHorizontal: space.md, minHeight: 40, borderWidth: 1, borderColor: colors.line },
   walletText: { ...type.label, color: colors.accent, fontSize: 13 },

@@ -12,7 +12,6 @@ import { colors, radius, space, type } from '@/theme/tokens';
 import { CompetitorBadge } from '../Badge';
 import { Icon, sportIcon } from '../ui/Icon';
 import { StatusPill } from '../ui/LiveDot';
-import { DemoTag } from '../ui/Misc';
 import { statusLabel } from './ScoreCard';
 import { FlashScore } from './FlashScore';
 
@@ -54,7 +53,6 @@ export function EventHeader({ state, compact = false }: { state: EventState; com
         <View style={styles.topRow}>
           <Icon name={sportIcon(meta.sportId)} size={14} color={colors.textDim} />
           <Text style={styles.comp} numberOfLines={1}>{sport?.name} · {comp?.name}</Text>
-          {meta.isDemo ? <DemoTag /> : null}
         </View>
       )}
       {isRace ? (

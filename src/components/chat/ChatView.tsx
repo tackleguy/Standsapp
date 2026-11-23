@@ -78,7 +78,6 @@ function MessageRow({ m, now, onMenu }: { m: ChatMessage; now: number; onMenu: (
         <View style={styles.msgHead}>
           <Text style={[styles.author, m.isMine && { color: colors.accent }]} numberOfLines={1}>{m.isMine ? 'You' : m.displayName}</Text>
           <Text style={styles.handle} numberOfLines={1}>@{m.username}</Text>
-          {!m.isMine && m.userId.startsWith('fan_') ? <Text style={styles.demoFan}>demo fan</Text> : null}
           <Text style={styles.time}>{timeAgo(m.at, now)}</Text>
         </View>
         <Text style={styles.text}>{m.body}</Text>
@@ -159,7 +158,6 @@ const styles = StyleSheet.create({
   msgHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   author: { ...type.label, fontSize: 13, color: colors.text, maxWidth: 130 },
   handle: { ...type.label, fontSize: 11, color: colors.loss, flexShrink: 1 },
-  demoFan: { fontSize: 9, color: colors.textDim, borderWidth: 1, borderColor: colors.line, borderRadius: 4, paddingHorizontal: 3 },
   time: { ...type.label, fontSize: 11, color: colors.loss, marginLeft: 'auto' },
   text: { ...type.body, color: colors.text },
   reactRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, alignItems: 'center', marginTop: 2 },
