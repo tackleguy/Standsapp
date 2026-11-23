@@ -129,6 +129,12 @@
     moved to version 3 without losing any cards.
   - The Cards tab has a new first section, **My players**, with live points and Tix earned.
 
+- **Card earnings page** (Cards → Earnings): Tix your cards earned today, this week or this season,
+  your rank among collectors, a 7-day chart, where it came from (win bonuses, fantasy points, set
+  rewards, quick sells), what you spent on packs and the net, your top-earning cards, every payout.
+- **Card earnings leaderboard**: Leaderboards switch between Calls (Clout won) and Cards (Tix
+  earned), with podium, movement, collection size and your place; global or the fans you follow.
+
 Checks: `npm run check` (linter + type checker + tests) passes.
 
 ## What is next
