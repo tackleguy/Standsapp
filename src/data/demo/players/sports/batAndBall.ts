@@ -23,7 +23,8 @@ export const baseball: SportStatsDef = {
     ab: 'AB', h: 'H', b1: '1B', b2: '2B', b3: '3B', hr: 'HR', r: 'R', rbi: 'RBI', bb: 'BB', so: 'K', sb: 'SB',
     outs: 'OUTS', kp: 'K', er: 'ER', ha: 'H', bba: 'BB', w: 'W', sv: 'SV',
   },
-  fantasy: { b1: 3, b2: 5, b3: 8, hr: 10, r: 2, rbi: 2, bb: 2, sb: 5, outs: 0.75, kp: 2, er: -2, ha: -0.6, bba: -0.6, w: 4, sv: 5 },
+  // Daily-fantasy style scoring, with runs and RBIs a touch richer so an everyday hitter averages ~8-9.
+  fantasy: { b1: 3, b2: 5, b3: 8, hr: 10, r: 2.5, rbi: 2.5, bb: 2, sb: 5, outs: 0.75, kp: 2, er: -2, ha: -0.6, bba: -0.6, w: 4, sv: 5 },
   headline: (l, pos) => (isPitcher(pos)
     ? join([`${innings(n(l, 'outs'))} ip`, `${n(l, 'kp')} k`, `${n(l, 'er')} er`])
     : join([`${n(l, 'h')}-${n(l, 'ab')}`, n(l, 'hr') ? `${n(l, 'hr')} hr` : null, n(l, 'rbi') ? `${n(l, 'rbi')} rbi` : null, n(l, 'r') ? `${n(l, 'r')} r` : null])),
@@ -48,7 +49,9 @@ export const cricket: SportStatsDef = {
     { pos: 'BOWL', label: 'Bowler', count: 4, starters: 3, numbers: [1, 99] },
   ],
   labels: { runs: 'R', balls: 'B', fours: '4S', sixes: '6S', out: 'OUT', wkts: 'W', bb: 'BALLS', rc: 'RUNS', md: 'MD', ct: 'CT', st: 'ST', ro: 'RO' },
-  fantasy: { runs: 0.4, fours: 0.4, sixes: 0.8, wkts: 8, md: 4, ct: 3, st: 4, ro: 3 },
+  // Bowlers also earn 0.3 a ball and lose 0.2 a run conceded: break-even at 9 an over,
+  // so a tidy wicketless spell still counts and an expensive one costs a little.
+  fantasy: { runs: 0.4, fours: 0.4, sixes: 0.8, wkts: 8, md: 4, ct: 3, st: 4, ro: 3, bb: 0.3, rc: -0.2 },
   headline: (l, pos) => {
     const bat = n(l, 'balls') > 0 ? `${n(l, 'runs')}${n(l, 'out') ? '' : '*'} (${n(l, 'balls')})` : null;
     const bowl = n(l, 'bb') > 0 ? `${n(l, 'wkts')}/${n(l, 'rc')} (${Math.floor(n(l, 'bb') / 6)}${n(l, 'bb') % 6 ? `.${n(l, 'bb') % 6}` : ''})` : null;
