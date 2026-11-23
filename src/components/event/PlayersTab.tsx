@@ -57,7 +57,7 @@ export function PlayersTab({ state, sideId, onScroll }: {
           </View>
         </Pressable>
       ))}
-      <Text style={styles.foot}>A player card earns its player's fantasy points, rounded, in Tix after every game. 🎴 = you own the card.</Text>
+      <Text style={styles.foot}>A player card earns its player&apos;s fantasy points, rounded, in Tix after every game. 🎴 = you own the card.</Text>
     </ScrollView>
   );
 }

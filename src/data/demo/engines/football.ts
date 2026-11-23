@@ -415,7 +415,6 @@ function buildScript(meta: EventMeta): FootballScript {
     let turnover: 'int' | 'fumble' | null = null;
     let stopsClock = false;
     let carrier: Player | undefined;
-    let passer: Player | undefined;
     let target: Player | undefined;
     let defender: Player | undefined;
     let complete = false;
@@ -431,7 +430,6 @@ function buildScript(meta: EventMeta): FootballScript {
     };
 
     if (kind === 'pass') {
-      passer = o.qb;
       const sackP = 0.064 - edge * 0.04;
       if (rng.chance(sackP)) {
         kind = 'sack';
