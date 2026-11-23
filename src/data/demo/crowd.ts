@@ -98,3 +98,13 @@ export function callCrowd(
   call.options.forEach((o, i) => { shares[o.id] = floors[i]; });
   return { total, shares };
 }
+
+/** Members of a Section who are online right now: busier in the evening, never everyone. */
+export function sectionOnline(sectionId: string, members: number, now: number): number {
+  if (members <= 1) return members;
+  const hour = new Date(now).getHours();
+  const evening = hour >= 18 || hour < 1 ? 1 : hour >= 8 && hour < 18 ? 0.6 : 0.25;
+  const bucket = Math.floor(now / (5 * 60_000));
+  const rng = createRng(`online:${sectionId}:${bucket}`);
+  return Math.max(1, Math.round(members * evening * rng.float(0.12, 0.38)));
+}

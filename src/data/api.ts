@@ -156,6 +156,6 @@ export {
   championship, championshipRow, fightRankings, fightRecord, headToHead, leagueName, nextRoundAt, ordinal, recordLine,
   roundsPlayed, simulateMatch, standingsKind, teamRow, teamsChampionship, teamTable,
 } from './demo/season';
-export { callCrowd } from './demo/crowd';
+export { callCrowd, sectionOnline } from './demo/crowd';
 export type { ChampionshipRow, FightRecord, Meeting, Result, StandingsKind, TeamRow } from './demo/season';
 export { chattersFor, crowdLabel, watchersFor } from './demo/crowd';

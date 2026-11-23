@@ -36,7 +36,7 @@ export default function Today() {
     <View>
       <TodayHeader dayStart={dayStart} today={today} onDay={setDayStart} sport={sport} onSport={setSport}
         liveCounts={feed.liveCounts} totalLive={feed.totalLive} liveOnly={liveOnly} onLiveOnly={setLiveOnly} strip={feed.strip} />
-      {dayStart === today ? <FeaturedEvents events={feed.featured} /> : null}
+      {dayStart === today && sport === 'all' && !liveOnly ? <FeaturedEvents events={feed.featured} /> : null}
     </View>
   );
 
