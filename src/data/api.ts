@@ -159,3 +159,21 @@ export {
 export { callCrowd, sectionOnline } from './demo/crowd';
 export type { ChampionshipRow, FightRecord, Meeting, Result, StandingsKind, TeamRow } from './demo/season';
 export { chattersFor, crowdLabel, watchersFor } from './demo/crowd';
+
+// --- Chat (fork B) ---
+// Live chat threads: the messages, who is typing, and how many are in the stands.
+// eslint-disable-next-line import/first
+import { eventChatSnapshot, sectionChatSnapshot, type ChatSnapshot } from './demo/chat';
+export type { ChatEntry, ChatMoment, ChatSnapshot } from './demo/chat';
+export { echoesFor } from './demo/chat';
+
+export function getEventChat(eventId: string, now: number): ChatSnapshot | null {
+  const meta = eventMetaById(eventId);
+  return meta ? eventChatSnapshot(meta, now) : null;
+}
+
+export function getSectionChat(sectionId: string, now: number, joined: boolean): ChatSnapshot | null {
+  const section = demoSectionById(sectionId);
+  if (!section) return null;
+  return sectionChatSnapshot(section.id, section.sportId, sectionFans(section), section.memberIds.length + (joined ? 1 : 0), now);
+}
