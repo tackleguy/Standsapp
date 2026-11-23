@@ -77,9 +77,9 @@ export function MyPlayersView() {
               A team card pays the combined points of the team&rsquo;s 3 best players.
             </Text>
             <View style={styles.buttons}>
-              <Button label={freeUsed ? `Choose a player · ${PLAYER_CARD_TIX}` : 'Choose a player · Free'} icon="person-add" small style={{ flex: 1 }}
+              <Button label={freeUsed ? `Choose a player · ${PLAYER_CARD_TIX} Tix` : 'Choose a player · first one free'} icon="person-add"
                 onPress={() => router.push({ pathname: '/pick', params: { mode: 'players' } })} />
-              <Button label={`Choose a team · ${TEAM_CARD_TIX}`} icon="shield" small variant="secondary" style={{ flex: 1 }}
+              <Button label={`Choose a team · ${TEAM_CARD_TIX} Tix`} icon="shield" variant="secondary"
                 onPress={() => router.push({ pathname: '/pick', params: { mode: 'teams' } })} />
             </View>
           </Surface>
@@ -102,7 +102,7 @@ const styles = StyleSheet.create({
   body: { padding: space.lg, gap: space.sm, paddingBottom: 60 },
   title: { ...type.title, color: colors.text },
   text: { ...type.label, color: colors.textDim, lineHeight: 17, fontWeight: '500' },
-  buttons: { flexDirection: 'row', gap: space.sm, marginTop: space.xs },
+  buttons: { gap: space.sm, marginTop: space.xs },
   tiles: { flexDirection: 'row', gap: space.sm },
   row: { flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.sm, borderRadius: radius.md, backgroundColor: colors.surface,
     borderWidth: 1, borderColor: colors.line },

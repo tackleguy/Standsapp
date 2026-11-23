@@ -19,6 +19,7 @@ import { Header, Screen } from '@/components/ui/Screen';
 import { EmptyState, ErrorState, Skeleton } from '@/components/ui/StateViews';
 import { sportById } from '@/config/sports';
 import { competitorById, getWorld } from '@/data/api';
+import { sportStats } from '@/data/playerApi';
 import type { EventState } from '@/data/types';
 import { useAccountGate } from '@/hooks/useAccountGate';
 import { useEvent } from '@/hooks/useLiveData';
@@ -64,7 +65,7 @@ export default function EventScreen() {
     // A tab per team in team sports (like "NE" and "SEA"), or one for the whole field.
     ...(scheduled ? [] : teamSides
       ? state.meta.competitorIds.map((cid) => ({ value: `side:${cid}` as Tab, label: competitorById(cid)?.shortName ?? 'Team' }))
-      : [{ value: 'players' as Tab, label: 'Players' }]),
+      : [{ value: 'players' as Tab, label: fieldLabel(state.meta.sportId) }]),
   ];
   const choose = (t: Tab) => { setTab(t); setCompact(false); };
 
@@ -103,6 +104,12 @@ function StatsTab({ state, onScroll }: { state: EventState; onScroll: (e: Native
       <StatsView sections={state.stats} />
     </ScrollView>
   );
+}
+
+/** "Drivers", "Riders", "Golfers"... for the tab listing everyone in a field. */
+function fieldLabel(sportId: string): string {
+  const label = sportStats(sportId).athletePos?.label;
+  return label && label !== 'Player' ? `${label}s` : 'Players';
 }
 
 async function shareEvent(title: string) {

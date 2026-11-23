@@ -591,7 +591,7 @@ function buildScript(meta: EventMeta): FootballScript {
     if (fourth && firstDown) impact += 1.5;
 
     const big = !td && !turnover && yards >= 20;
-    const tag = td ? 'TD' : turnover === 'int' ? 'INT' : turnover === 'fumble' ? 'FUMBLE' : safety ? 'SAF' : kind === 'sack' ? 'SACK'
+    const tag = td || returnTd ? 'TD' : turnover === 'int' ? 'INT' : turnover === 'fumble' ? 'FUMBLE' : safety ? 'SAF' : kind === 'sack' ? 'SACK'
       : fourth ? '4TH' : big ? 'BIGPLAY' : kind === 'run' ? 'RUN' : 'PASS';
     const importance: Importance = td || turnover || safety ? 3 : big || kind === 'sack' || fourth ? 2 : 1;
     const defenseGains = turnover || safety || kind === 'sack';

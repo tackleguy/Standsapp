@@ -62,6 +62,15 @@ export default function PickScreen() {
   const [query, setQuery] = useState('');
   const [confirm, setConfirm] = useState<{ kind: 'player' | 'team'; id: string; name: string; price: number } | null>(null);
   const rows = usePlayersWithAverages(sport);
+  // Followed sports first (and the one opened with), so the chosen chip is in view.
+  const sportOrder = useMemo(() => {
+    const first = [params.sport, ...followed].filter((x): x is string => !!x && !!sportById(x));
+    return [...SPORTS].sort((a, b) => {
+      const ia = first.indexOf(a.id);
+      const ib = first.indexOf(b.id);
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+    });
+  }, [followed, params.sport]);
   const def = sportStats(sport);
   const price = playerCardPrice({ freePlayerUsed: freeUsed });
   const ownedPlayers = useMemo(() => new Set(cards.filter((c) => c.kind === 'player').map((c) => c.playerId)), [cards]);
@@ -96,7 +105,7 @@ export default function PickScreen() {
             : `Team cards are ${TEAM_CARD_TIX} Tix. A team card earns the combined fantasy points of the team's 3 best players in every game.`}
         </Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-          {SPORTS.filter((s) => mode === 'players' || (getWorld().bySport.get(s.id) ?? []).some((c) => c.kind === 'team')).map((s) => (
+          {sportOrder.filter((s) => mode === 'players' || (getWorld().bySport.get(s.id) ?? []).some((c) => c.kind === 'team')).map((s) => (
             <Chip key={s.id} label={s.name} icon={sportIcon(s.id)} selected={sport === s.id} onPress={() => { setSport(s.id); setPos(null); }} />
           ))}
         </ScrollView>
@@ -123,25 +132,27 @@ export default function PickScreen() {
               const team = competitorById(p.teamId);
               const owned = ownedPlayers.has(p.id);
               return (
-                <Pressable onPress={() => router.push({ pathname: '/player/[id]', params: { id: p.id } })} accessibilityRole="button"
-                  accessibilityLabel={`${p.name}, ${p.posLabel}, averaging ${formatPoints(item.avg)} fantasy points`}
-                  style={({ pressed }) => [styles.row, pressed && { opacity: 0.85 }]}>
-                  <PlayerAvatar playerId={p.id} size={40} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.name} numberOfLines={1}>{p.name}</Text>
-                    <Text style={styles.meta} numberOfLines={1}>{[team?.shortName, p.posLabel, p.rookie ? 'Rookie' : null].filter(Boolean).join(' · ')}</Text>
-                  </View>
-                  <View style={styles.avgBox}>
-                    <Text style={styles.avg}>{formatPoints(item.avg)}</Text>
-                    <Text style={styles.avgLabel}>AVG FPS</Text>
-                  </View>
+                <View style={styles.row}>
+                  <Pressable onPress={() => router.push({ pathname: '/player/[id]', params: { id: p.id } })} accessibilityRole="button"
+                    accessibilityLabel={`${p.name}, ${p.posLabel}, averaging ${formatPoints(item.avg)} fantasy points`}
+                    style={({ pressed }) => [styles.rowMain, pressed && { opacity: 0.85 }]}>
+                    <PlayerAvatar playerId={p.id} size={40} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.name} numberOfLines={1}>{p.name}</Text>
+                      <Text style={styles.meta} numberOfLines={1}>{[team?.shortName, p.posLabel, p.rookie ? 'Rookie' : null].filter(Boolean).join(' · ')}</Text>
+                    </View>
+                    <View style={styles.avgBox}>
+                      <Text style={styles.avg}>{formatPoints(item.avg)}</Text>
+                      <Text style={styles.avgLabel}>AVG FPS</Text>
+                    </View>
+                  </Pressable>
                   {owned ? <Text style={styles.owned}>Owned</Text> : (
                     <Pressable onPress={() => setConfirm({ kind: 'player', id: p.id, name: p.short, price })} accessibilityRole="button"
                       accessibilityLabel={`Get ${p.short}'s card for ${price === 0 ? 'free' : `${price} Tix`}`} style={styles.price}>
                       <Text style={styles.priceText}>{price === 0 ? 'Free' : price}</Text>
                     </Pressable>
                   )}
-                </Pressable>
+                </View>
               );
             }}
           />
@@ -155,20 +166,22 @@ export default function PickScreen() {
           renderItem={({ item }) => {
             const owned = ownedTeams.has(item.id);
             return (
-              <Pressable onPress={() => router.push({ pathname: '/competitor/[id]', params: { id: item.id } })} accessibilityRole="button"
-                accessibilityLabel={item.name} style={({ pressed }) => [styles.row, pressed && { opacity: 0.85 }]}>
-                <CompetitorBadge id={item.id} size={40} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
-                  <Text style={styles.meta} numberOfLines={1}>{sportById(item.sportId)?.name} · {rosterFor(item.id).length} players</Text>
-                </View>
+              <View style={styles.row}>
+                <Pressable onPress={() => router.push({ pathname: '/competitor/[id]', params: { id: item.id } })} accessibilityRole="button"
+                  accessibilityLabel={item.name} style={({ pressed }) => [styles.rowMain, pressed && { opacity: 0.85 }]}>
+                  <CompetitorBadge id={item.id} size={40} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
+                    <Text style={styles.meta} numberOfLines={1}>{sportById(item.sportId)?.name} · {rosterFor(item.id).length} players</Text>
+                  </View>
+                </Pressable>
                 {owned ? <Text style={styles.owned}>Owned</Text> : (
                   <Pressable onPress={() => setConfirm({ kind: 'team', id: item.id, name: item.name, price: TEAM_CARD_TIX })} accessibilityRole="button"
                     accessibilityLabel={`Get the ${item.name} card for ${TEAM_CARD_TIX} Tix`} style={styles.price}>
                     <Text style={styles.priceText}>{TEAM_CARD_TIX}</Text>
                   </Pressable>
                 )}
-              </Pressable>
+              </View>
             );
           }}
         />
@@ -193,8 +206,9 @@ const styles = StyleSheet.create({
   explain: { ...type.label, color: colors.textDim, lineHeight: 17, fontWeight: '500' },
   chips: { gap: space.sm },
   list: { paddingHorizontal: space.lg, paddingBottom: 60, gap: space.sm },
-  row: { flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.sm, borderRadius: radius.md, backgroundColor: colors.surface,
+  row: { flexDirection: 'row', alignItems: 'center', gap: space.sm, padding: space.sm, borderRadius: radius.md, backgroundColor: colors.surface,
     borderWidth: 1, borderColor: colors.line, minHeight: 60 },
+  rowMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.md },
   name: { fontSize: 15, fontWeight: '700', color: colors.text },
   meta: { ...type.label, color: colors.textDim, marginTop: 2 },
   avgBox: { alignItems: 'flex-end' },

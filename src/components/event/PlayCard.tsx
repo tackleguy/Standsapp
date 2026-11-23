@@ -40,12 +40,12 @@ function notes(play: Play): { icon: string; text: string }[] {
   const f = play.football;
   const out: { icon: string; text: string }[] = [];
   if (f) {
-    if (f.touchdown) out.push({ icon: '🏈', text: 'Touchdown' });
+    if (f.touchdown || play.tag === 'TD') out.push({ icon: '🏈', text: 'Touchdown' });
     else if (f.firstDown && f.kind !== 'penalty') out.push({ icon: '✅', text: f.down === 4 ? 'Converts on 4th down' : f.down === 3 ? '3rd-down conversion' : '1st down' });
     if (f.yac !== null && f.yac > 0) out.push({ icon: '🏃', text: `${f.yac} yard${f.yac === 1 ? '' : 's'} after catch` });
-    if (play.tag === 'INT' || play.tag === 'FUMBLE') out.push({ icon: '🔁', text: 'Turnover' });
-  } else if (play.scoreAfter && play.tag !== 'FINAL') {
-    out.push({ icon: '🔥', text: `Score: ${play.scoreAfter}` });
+    if (play.tag === 'INT' || play.tag === 'FUMBLE' || play.headline === 'Pick-six') out.push({ icon: '🔁', text: 'Turnover' });
+  } else if (play.scoreAfter && play.tag !== 'FINAL' && play.importance === 3) {
+    out.push({ icon: '🔥', text: `Now ${play.scoreAfter}` });
   }
   return out;
 }
