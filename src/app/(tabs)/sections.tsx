@@ -9,7 +9,7 @@ import { Icon, sportIcon } from '@/components/ui/Icon';
 import { Field, SectionHeading } from '@/components/ui/Misc';
 import { Header, Screen } from '@/components/ui/Screen';
 import { sportById } from '@/config/sports';
-import { getSectionBotChat, sectionOnline } from '@/data/api';
+import { getSectionChat } from '@/data/api';
 import { DEMO_SECTIONS } from '@/data/demo/sections';
 import { useAccountGate } from '@/hooks/useAccountGate';
 import { useNow } from '@/hooks/useNow';
@@ -57,7 +57,7 @@ export default function SectionsScreen() {
         <SectionHeading title="Popular Sections" />
         {DEMO_SECTIONS.map((s) => (
           <Row key={s.id} id={s.id} name={s.name} sportId={s.sportId} sub={s.description} now={now}
-            members={s.memberIds.length + (joined.includes(s.id) ? 1 : 0)} onPress={() => open(s.id)} demo />
+            members={s.memberIds.length + (joined.includes(s.id) ? 1 : 0)} joined={joined.includes(s.id)} onPress={() => open(s.id)} demo />
         ))}
         <SectionHeading title={rows.length === 0 ? 'Start your own' : 'Add a Section'} />
         {rows.length === 0 ? <Text style={styles.lead}>Create one for your friends, or join with an invite code.</Text> : null}
@@ -77,12 +77,14 @@ export default function SectionsScreen() {
   );
 }
 
-function Row({ id, name, sportId, sub, members, now, onPress, demo }: {
-  id: string; name: string; sportId: string; sub: string; members: number; now: number; onPress: () => void; demo?: boolean;
+function Row({ id, name, sportId, sub, members, now, onPress, demo, joined = false }: {
+  id: string; name: string; sportId: string; sub: string; members: number; now: number; onPress: () => void; demo?: boolean; joined?: boolean;
 }) {
-  // Public Sections have a live chat: show its latest line, like a messaging app.
-  const last = demo ? getSectionBotChat(id, now)[0] : undefined;
-  const online = sectionOnline(id, members, now);
+  // Public Sections have a live chat: show its latest line and who is online,
+  // exactly as the chat inside shows them.
+  const snap = demo ? getSectionChat(id, now, joined) : null;
+  const last = snap?.messages[0];
+  const online = snap?.chatters ?? 1;
   return (
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${name}, ${members} members, ${online} online`}
       style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.surface }]}>

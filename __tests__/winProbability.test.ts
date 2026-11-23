@@ -120,3 +120,16 @@ describe('richer play-by-play', () => {
     expect(simulate(meta, t).periodLabel).toBe(a);
   });
 });
+
+describe('live games stay in doubt', () => {
+  it('never shows 100% or 0% before the end', () => {
+    const { stillInDoubt, asPercents } = jest.requireActual('@/logic/winProbability') as typeof import('@/logic/winProbability');
+    const p = stillInDoubt({ home: 0.99999, draw: 0, away: 0.00001 });
+    const pct = asPercents(p, false);
+    expect(pct.home).toBeLessThanOrEqual(99);
+    expect(pct.away).toBeGreaterThanOrEqual(1);
+    const withDraw = asPercents(stillInDoubt({ home: 0.0001, draw: 0.0002, away: 0.9997 }), true);
+    expect(withDraw.away).toBeLessThanOrEqual(99);
+    expect(withDraw.home).toBeGreaterThanOrEqual(1);
+  });
+});

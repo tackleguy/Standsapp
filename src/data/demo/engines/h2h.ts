@@ -89,7 +89,8 @@ function buildScript(meta: EventMeta): H2HScript {
   const sH = strengthOf(homeId) + cfg.homeEdge;
   const sA = strengthOf(awayId);
   const rel = sH / (sH + sA);
-  const factor = [0.4 + 1.2 * rel, 0.4 + 1.2 * (1 - rel)];
+  const spread = 1.2 * (cfg.strengthSpread ?? 1);
+  const factor = [1 + spread * (rel - 0.5), 1 + spread * (0.5 - rel)];
   const squads = [squadFor(homeId, 14), squadFor(awayId, 14)];
   const pickPlayer = (side: 0 | 1) => squads[side][Math.floor(Math.pow(rng.next(), 1.7) * squads[side].length)];
   const bounds = buildBounds(meta, cfg);
@@ -108,7 +109,10 @@ function buildScript(meta: EventMeta): H2HScript {
 
   const addScoring = (side: 0 | 1, periodFilter: number | null, meanScale: number) => {
     for (const type of cfg.scoring) {
-      const n = rng.poisson(type.mean * factor[side] * meanScale);
+      const mu = type.mean * factor[side] * meanScale;
+      // rng.normal's spread is about 3.5 standard deviations wide.
+      const n = cfg.countNoise === undefined ? rng.poisson(mu)
+        : Math.max(0, Math.round(rng.normal(mu, Math.sqrt(mu) * cfg.countNoise * 3.46)));
       for (let k = 0; k < n; k++) {
         const pos = periodFilter === null
           ? placeClock(rng.float(0, totalClock))

@@ -3,7 +3,7 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 
 import {
-  getCompetitor, getDayEvents, getEvent, getEventCalls, getLeaderboard, getOpenCalls, search,
+  getCompetitor, getDayEvents, getEvent, getEventCalls, getOpenCalls, search,
 } from '@/data/api';
 import { currentTime, DAY } from '@/lib/format';
 
@@ -61,13 +61,5 @@ export function useSearch(query: string) {
     queryKey: ['search', query.trim().toLowerCase()],
     queryFn: () => asPromise(() => search(query)),
     placeholderData: keepPreviousData,
-  });
-}
-
-export function useLeaderboard(fanIds?: string[]) {
-  return useQuery({
-    queryKey: ['leaderboard', fanIds?.join(',') ?? 'all'],
-    queryFn: () => asPromise(() => getLeaderboard(currentTime(), fanIds)),
-    refetchInterval: 30_000,
   });
 }

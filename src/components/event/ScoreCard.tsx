@@ -3,13 +3,13 @@ import { memo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { crowdLabel } from '@/data/demo/crowd';
-import { tagGlyph } from '@/lib/tagGlyph';
 import { colors, fonts, radius, space, type } from '@/theme/tokens';
 
 import { Badge } from '../Badge';
 import { Icon } from '../ui/Icon';
 import { LiveDot } from '../ui/LiveDot';
 import { FlashScore } from './FlashScore';
+import { playIcon } from './playIcons';
 
 export interface CardEntry {
   competitorId: string;
@@ -149,7 +149,7 @@ function ScoreCardImpl({ event, onPress }: { event: CardEvent; onPress: () => vo
           ) : null}
           {event.keyPlay ? (
             <Text style={styles.keyPlay} numberOfLines={1}>
-              {tagGlyph(event.keyPlay.tag)} <Text style={styles.keyClock}>{event.keyPlay.clock}</Text> {event.keyPlay.text}
+              {playIcon(event.keyPlay.tag, event.sportId ?? '')} <Text style={styles.keyClock}>{event.keyPlay.clock}</Text> {event.keyPlay.text}
             </Text>
           ) : null}
         </View>

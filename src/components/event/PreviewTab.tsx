@@ -102,7 +102,9 @@ function TeamsPreview({ state, now, onMakeCalls }: { state: EventState; now: num
   const [homeId, awayId] = meta.competitorIds;
   const [homeColor, awayColor] = sideColors(homeId, awayId);
   const prob = useMemo(() => eventWinProbability(state), [state]);
-  const pick = useMemo(() => crowdPick(meta), [meta]);
+  // Re-read the crowd once a minute; the countdown ticks every second.
+  const minute = Math.floor(now / 60_000);
+  const pick = useMemo(() => crowdPick(meta, minute * 60_000), [meta, minute]);
   const kind = standingsKind(meta.sportId);
   const rows = useMemo(() => [teamRow(homeId, now), teamRow(awayId, now)] as [TeamRow | undefined, TeamRow | undefined], [homeId, awayId, now]);
   const meetings = useMemo(() => headToHead(homeId, awayId, now, 5), [homeId, awayId, now]);

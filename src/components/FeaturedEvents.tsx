@@ -4,10 +4,10 @@ import { memo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { crowdLabel } from '@/data/demo/crowd';
-import { tagGlyph } from '@/lib/tagGlyph';
 import { colors, fonts, radius, space } from '@/theme/tokens';
 
 import { Badge } from './Badge';
+import { playIcon } from './event/playIcons';
 import type { CardEntry, CardEvent } from './event/ScoreCard';
 import { FlashScore } from './event/FlashScore';
 import { Icon } from './ui/Icon';
@@ -40,7 +40,7 @@ const Hero = memo(function Hero({ event, width }: { event: CardEvent; width: num
   return (
     <Pressable onPress={open} accessibilityRole="button" accessibilityLabel={`Featured: ${event.title}, ${event.periodLabel ?? 'live'}`}
       style={({ pressed }) => [styles.hero, { width }, pressed && { opacity: 0.92 }]}>
-      <TeamGlow id={`hero-${event.id}`} left={isRace ? leaderColor : home?.colors?.[0]} right={isRace ? podium[1]?.colors?.[0] : away?.colors?.[0]} />
+      <TeamGlow left={isRace ? leaderColor : home?.colors?.[0]} right={isRace ? podium[1]?.colors?.[0] : away?.colors?.[0]} strength={0.55} />
       <View style={styles.top}>
         <View style={styles.livePill}>
           <LiveDot size={6} />
@@ -94,7 +94,7 @@ const Hero = memo(function Hero({ event, width }: { event: CardEvent; width: num
       ) : null}
       {event.keyPlay ? (
         <Text style={styles.key} numberOfLines={1}>
-          {tagGlyph(event.keyPlay.tag)} <Text style={styles.keyClock}>{event.keyPlay.clock}</Text>  {event.keyPlay.text}
+          {playIcon(event.keyPlay.tag, event.sportId ?? '')} <Text style={styles.keyClock}>{event.keyPlay.clock}</Text>  {event.keyPlay.text}
         </Text>
       ) : <Text style={styles.key}> </Text>}
     </Pressable>

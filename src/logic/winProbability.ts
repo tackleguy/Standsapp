@@ -173,6 +173,21 @@ const COMBAT = new Set(['mma', 'boxing']);
 
 /** Win probability for any two-sided event in any state; null for races and fields. */
 export function winProbabilityFor(state: EventState, ctx: ProbabilityContext): WinProb | null {
+  const p = rawWinProbability(state, ctx);
+  // Nothing is certain until the end: like real apps, cap a live game at 99%.
+  return p && state.status !== 'finished' ? stillInDoubt(p) : p;
+}
+
+/** Keeps each side between 1% and 99%, so a live game never reads 100% or 0%. */
+export function stillInDoubt(p: WinProb): WinProb {
+  const home = Math.min(0.99, Math.max(0.01, p.home));
+  const away = Math.min(0.99, Math.max(0.01, p.away));
+  const draw = Math.max(0, p.draw);
+  const total = home + away + draw;
+  return { home: home / total, draw: draw / total, away: away / total };
+}
+
+function rawWinProbability(state: EventState, ctx: ProbabilityContext): WinProb | null {
   const { meta } = state;
   if (meta.format === 'race' || state.status === 'postponed' || state.status === 'cancelled') return null;
   const home = state.entries.find((e) => e.role === 'home');

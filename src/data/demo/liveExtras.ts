@@ -7,6 +7,8 @@ import {
 } from '@/logic/winProbability';
 
 import type { EventMeta, EventState } from '../types';
+import { callsForEvent } from './calls';
+import { callCrowd } from './crowd';
 import { simulate } from './engines';
 import { H2H_CONFIGS } from './engines/h2hSports';
 import { competitorById } from './world';
@@ -98,8 +100,15 @@ export function winProbabilitySeries(state: EventState, now: number): { points: 
  * Who Stands fans are backing, in whole percentages. Follows the odds, with a
  * pull toward the bigger club and a little seeded noise.
  */
-export function crowdPick(meta: EventMeta): { home: number; draw: number; away: number; votes: number } | null {
+export function crowdPick(meta: EventMeta, now: number): { home: number; draw: number; away: number; votes: number } | null {
   if (meta.format === 'race' || meta.competitorIds.length !== 2) return null;
+  // Same numbers as the "Who wins?" Call, so the Preview and Calls tabs agree.
+  const winner = callsForEvent(meta).find((c) => c.kind === 'winner');
+  if (winner) {
+    const crowd = callCrowd(winner, meta.sportId, Math.min(now, winner.closesAt));
+    const share = (suffix: string) => crowd.shares[winner.options.find((o) => o.id.endsWith(`:${suffix}`))?.id ?? ''] ?? 0;
+    if (crowd.total > 0) return { home: share('home'), draw: share('draw'), away: share('away'), votes: crowd.total };
+  }
   const [h, a] = meta.competitorIds;
   const p = pregameProbability(meta.sportId, competitorById(h)?.strength ?? 0.5, competitorById(a)?.strength ?? 0.5,
     probabilityContext(meta.sportId).homeEdge);

@@ -48,6 +48,16 @@ export interface H2HConfig {
   tie: 'draw' | 'overtime';
   overtime?: PeriodDef & { suddenDeath: boolean; shootout?: boolean };
   homeEdge: number;
+  /**
+   * How much team strength stretches scoring (1 = fully). High-scoring sports use
+   * less, so a strong team wins 118-101, not 171-86.
+   */
+  strengthSpread?: number;
+  /**
+   * How much the number of each kind of score varies from game to game, relative
+   * to a plain random count (1). Possession sports vary far less in real life.
+   */
+  countNoise?: number;
   scoreText?: (counts: Record<string, number>, points: number) => string;
   /**
    * Minor moments that make the play-by-play feel complete (shots, fouls,
@@ -234,6 +244,8 @@ const basketball: H2HConfig = {
   tie: 'overtime',
   overtime: { label: 'Overtime', short: 'OT', clockMin: 5, realMin: 11, suddenDeath: false },
   homeEdge: 0.05,
+  strengthSpread: 0.35,
+  countNoise: 0.5,
   totalWord: 'points',
   startText: 'Tip-off at {venue}! {team} win the jump ball.',
   scoring: [
@@ -286,6 +298,7 @@ const americanFootball: H2HConfig = {
   tie: 'overtime',
   overtime: { label: 'Overtime', short: 'OT', clockMin: 10, realMin: 22, suddenDeath: true },
   homeEdge: 0.05,
+  strengthSpread: 0.8,
   totalWord: 'points',
   startText: 'Kickoff at {venue}. {team} receive.',
   scoring: [
@@ -381,6 +394,7 @@ const aussieRules: H2HConfig = {
   clock: 'down',
   tie: 'draw',
   homeEdge: 0.06,
+  strengthSpread: 0.7,
   totalWord: 'points',
   startText: 'The ball is bounced at {venue}! We are under way.',
   scoring: [
@@ -418,6 +432,8 @@ const netball: H2HConfig = {
   clock: 'down',
   tie: 'draw',
   homeEdge: 0.05,
+  strengthSpread: 0.45,
+  countNoise: 0.6,
   totalWord: 'goals',
   startText: 'First centre pass to {team} at {venue}!',
   scoring: [

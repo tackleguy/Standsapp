@@ -24,7 +24,7 @@ import { Icon, sportIcon } from '../ui/Icon';
 import { LiveDot } from '../ui/LiveDot';
 import { FlashScore } from './FlashScore';
 import { sideColors, teamColor } from './teamColor';
-import { TeamGlow } from './TeamGlow';
+import { TeamGlow } from '../ui/TeamGlow';
 import { WinProbBar } from './WinProbBar';
 
 /** "3rd · 25 pts", "12-4", "P2 · 143 pts", "22-3-0". */

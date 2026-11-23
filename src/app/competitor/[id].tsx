@@ -96,7 +96,7 @@ export default function CompetitorScreen() {
       <Header title={c.name} subtitle={sportById(c.sportId)?.name} back />
       <ScrollView contentContainerStyle={{ paddingBottom: 80 }}>
         <View style={styles.hero}>
-          <TeamGlow id={`comp-${c.id}`} left={c.colors?.[0]} right={glowRight} strength={0.45} />
+          <TeamGlow left={c.colors?.[0]} right={glowRight} strength={0.5} />
           <CompetitorBadge id={c.id} size={92} />
           <Text style={styles.name}>{c.name}</Text>
           <Text style={styles.sub}>{c.kind === 'team' && !roster.length ? `${c.home} · ${venueFor(c)}` : `${c.home}${team ? ` · ${team.name}` : ''}`}</Text>
